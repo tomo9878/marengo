@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>マップエディタ - Triomphe à Marengo</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: sans-serif; background: #1a1a2e; color: #eee; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+  /* ===== ツールバー ===== */
+  #toolbar {
+    display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+    background: #16213e; border-bottom: 2px solid #0f3460; flex-shrink: 0; flex-wrap: wrap;
+  }
+  #toolbar h1 { font-size: 14px; color: #e94560; margin-right: 4px; white-space: nowrap; }
+
+  /* タブ */
+  .tab-btn {
+    padding: 5px 16px; border: 2px solid #0f3460; border-radius: 4px 4px 0 0;
+    background: #0f3460; color: #aaa; cursor: pointer; font-size: 13px; font-weight: bold;
+  }
+  .tab-btn.active { background: #1a1a2e; color: #eee; border-bottom-color: #1a1a2e; }
+  .tab-btn:hover:not(.active) { background: #1a3060; }
+
+  /* ===== ステートバー ===== */
+  #stateBar {
+    display: flex; align-items: center; gap: 10px; padding: 7px 14px;
+    border-bottom: 2px solid; flex-shrink: 0; transition: border-color .2s;
+  }
+  #stateBar.area-mode  { background: #0f3460; border-color: #e94560; }
+  #stateBar.road-mode  { background: #1a2a10; border-color: #8bc34a; }
+  #stateLabel { font-size: 13px; font-weight: bold; min-width: 130px; }
+
+  button {
+    padding: 5px 13px; border: 1px solid #444; border-radius: 4px;
+    background: #2a2a4a; color: #eee; cursor: pointer; font-size: 12px; white-space: nowrap;
+  }
+  button:hover { filter: brightness(1.35); }
+
+  /* 道路タイプ選択 */
+  #roadTypeGroup { display: flex; gap: 6px; }
+  .road-type-btn {
+    padding: 4px 12px; border-radius: 12px; border: 2px solid transparent;
+    font-size: 12px; font-weight: bold; cursor: pointer;
+  }
+  .road-type-btn.thick { background: #5d4037; color: #ffcc80; border-color: #795548; }
+  .road-type-btn.thin  { background: #33691e; color: #ccff90; border-color: #558b2f; }
+  .road-type-btn.active { filter: brightness(1.5); border-color: #fff; }
+
+  /* ===== メイン ===== */
+  #main { display: flex; flex: 1; overflow: hidden; }
+  #canvasWrap { flex: 1; overflow: auto; position: relative; }
+  canvas { display: block; }
+
+  /* ===== サイドバー ===== */
+  #sidebar {
+    width: 280px; background: #16213e; border-left: 2px solid #0f3460;
+    display: flex; flex-direction: column; flex-shrink: 0;
+  }
+  .side-section { border-bottom: 2px solid #0f3460; }
+  .side-section h2 {
+    font-size: 12px; padding: 7px 10px; background: #0f3460;
+    display: flex; justify-content: space-between; align-items: center; cursor: pointer;
+  }
+  .side-section h2 span { color: #4ecca3; }
+  .side-body { overflow-y: auto; max-height: 260px; }
+
+  /* リストアイテム */
+  .list-item {
+    padding: 6px 10px; border-bottom: 1px solid #1a2a3a; cursor: pointer;
+    font-size: 12px; display: flex; align-items: center; gap: 6px;
+  }
+  .list-item:hover { background: #0f3060; }
+  .list-item.sel { background: #1a4a7a; outline: 1px solid #4ecca3; }
+  .swatch { width: 13px; height: 13px; border-radius: 2px; flex-shrink: 0; }
+  .item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item-badge { font-size: 10px; padding: 1px 5px; border-radius: 8px; flex-shrink: 0; }
+  .badge-thick { background: #795548; color: #ffcc80; }
+  .badge-thin  { background: #558b2f; color: #ccff90; }
+  .item-del { color: #e94560; padding: 1px 5px; border-radius: 3px; flex-shrink: 0; }
+  .item-del:hover { background: #e94560; color: #fff; }
+
+  /* プロパティ */
+  #propPanel { padding: 10px; border-top: 2px solid #0f3460; display: none; flex-shrink: 0; }
+  #propPanel h3 { font-size: 12px; color: #4ecca3; margin-bottom: 8px; }
+  .prop-row { margin-bottom: 7px; }
+  .prop-row label { font-size: 10px; color: #aaa; display: block; margin-bottom: 2px; }
+  .prop-row input, .prop-row select {
+    width: 100%; padding: 4px 6px; background: #0f3460; border: 1px solid #555;
+    color: #eee; border-radius: 3px; font-size: 12px;
+  }
+  .prop-row input:focus, .prop-row select:focus { border-color: #4ecca3; outline: none; }
+
+  /* 辺情報 */
+  #edgePanel { padding: 8px 10px; border-top: 1px solid #0f3460; display: none; flex-shrink: 0; background: #111827; }
+  #edgePanel h4 { font-size: 11px; color: #f5a623; margin-bottom: 6px; }
+  .edge-row { font-size: 11px; padding: 3px 0; border-bottom: 1px solid #1a2a2a; display: flex; gap: 6px; align-items: center; }
+  .edge-id   { color: #81ecec; font-family: monospace; min-width: 70px; flex-shrink: 0; }
+  .edge-road { font-size: 10px; padding: 1px 5px; border-radius: 8px; flex-shrink: 0; }
+  .edge-adj  { color: #4ecca3; font-size: 11px; }
+  .edge-none-adj { color: #555; font-size: 11px; }
+
+  /* ===== ヒント ===== */
+  #hint {
+    position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.85); padding: 5px 16px; border-radius: 20px;
+    font-size: 11px; pointer-events: none; color: #4ecca3; white-space: nowrap; z-index: 100;
+  }
+
+  /* 透明度 */
+  #opRow { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #aaa; }
+  #opRow input { width: 75px; }
+</style>
+</head>
+<body>
+
+<!-- ===== ツールバー ===== -->
+<div id="toolbar">
+  <h1>🗺 マップエディタ</h1>
+  <button class="tab-btn active" id="tabArea" onclick="switchTab('area')">📐 エリア</button>
+  <button class="tab-btn"        id="tabRoad" onclick="switchTab('road')">🛣 道路</button>
+  <div style="width:1px;height:24px;background:#444;margin:0 4px"></div>
+  <button onclick="loadMap()">🖼 マップ画像</button>
+  <div id="opRow">
+    Map: <input type="range" id="opacity" min="10" max="100" value="65"
+      oninput="updateOpacity(this.value)"> <span id="opVal">65%</span>
+  </div>
+  <div style="display:flex;gap:4px;align-items:center;font-size:11px;color:#aaa;">
+    表示:
+    <label><input type="checkbox" id="chkEdge" checked onchange="render()"> 辺ID</label>
+    <label><input type="checkbox" id="chkVtx"  checked onchange="render()"> 頂点</label>
+    <label><input type="checkbox" id="chkLbl"  checked onchange="render()"> ラベル</label>
+  </div>
+  <button onclick="exportJSON()" style="background:#4ecca3;color:#000;font-weight:bold;margin-left:auto;">💾 JSON書き出し</button>
+  <button onclick="importJSON()">📂 JSON読込</button>
+</div>
+
+<!-- ===== ステートバー ===== -->
+<div id="stateBar" class="area-mode">
+  <span id="stateLabel">● 待機中</span>
+  <!-- エリア用ボタン -->
+  <div id="areaControls">
+    <button id="btnStart"   onclick="startDrawing()" style="background:#4ecca3;color:#000;font-weight:bold;">＋ 新しいエリア開始</button>
+    <button id="btnConfirm" onclick="confirmArea()"  style="background:#f5a623;color:#000;font-weight:bold;display:none;">✔ 確定</button>
+    <button id="btnUndo"    onclick="undoPoint()"    style="display:none;">↩ 取消</button>
+    <button id="btnCancel"  onclick="cancelDraw()"   style="display:none;">✖ キャンセル</button>
+  </div>
+  <!-- 道路用ボタン -->
+  <div id="roadControls" style="display:none;">
+    <div id="roadTypeGroup">
+      <button class="road-type-btn thick active" id="rtThick" onclick="setRoadType('thick')">━ 太い道（MP1）</button>
+      <button class="road-type-btn thin"         id="rtThin"  onclick="setRoadType('thin')"> ╌ 細い道（MP2）</button>
+    </div>
+    <button id="btnRoadConfirm" onclick="confirmRoad()" style="background:#8bc34a;color:#000;font-weight:bold;display:none;margin-left:8px;">✔ 確定</button>
+    <button id="btnRoadUndo"    onclick="undoRoadPt()"  style="display:none;">↩ 取消</button>
+    <button id="btnRoadCancel"  onclick="cancelRoad()"  style="display:none;">✖ キャンセル</button>
+    <span style="font-size:11px;color:#aaa;margin-left:8px;">クリックで道を引く → ダブルクリック/確定 で完了</span>
+  </div>
+  <span id="ptCount" style="font-size:12px;color:#aaa;margin-left:8px;"></span>
+</div>
+
+<!-- ===== メイン ===== -->
+<div id="main">
+  <div id="canvasWrap"><canvas id="canvas"></canvas></div>
+  <div id="sidebar">
+
+    <!-- エリア一覧 -->
+    <div class="side-section" id="areaSection">
+      <h2 onclick="toggleSection('areaListBody')">📐 エリア <span id="areaCount">0</span></h2>
+      <div class="side-body" id="areaListBody"><div id="areaList"></div></div>
+    </div>
+
+    <!-- 道路一覧 -->
+    <div class="side-section" id="roadSection">
+      <h2 onclick="toggleSection('roadListBody')">🛣 道路 <span id="roadCount">0</span></h2>
+      <div class="side-body" id="roadListBody"><div id="roadList"></div></div>
+    </div>
+
+    <!-- 辺情報 -->
+    <div id="edgePanel">
+      <h4>🔗 辺と道路の接続</h4>
+      <div id="edgeList"></div>
+    </div>
+
+    <!-- プロパティ -->
+    <div id="propPanel">
+      <h3 id="propTitle">📝 プロパティ</h3>
+      <div class="prop-row"><label>名前</label>
+        <input id="pName" placeholder="例: Marengo村" oninput="saveProp()"></div>
+      <div id="areaPropExtra">
+        <div class="prop-row"><label>容量（ユニット数上限）</label>
+          <input id="pCap" type="number" min="1" max="20" placeholder="例: 3" oninput="saveProp()"></div>
+        <div class="prop-row"><label>メモ</label>
+          <input id="pNote" placeholder="自由メモ" oninput="saveProp()"></div>
+      </div>
+      <div id="roadPropExtra">
+        <div class="prop-row"><label>道路タイプ</label>
+          <select id="pRoadType" onchange="saveProp()">
+            <option value="thick">太い道（MP1）</option>
+            <option value="thin">細い道（MP2）</option>
+          </select></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="hint"></div>
+
+<input type="file" id="fileInput" accept="image/*" style="display:none" onchange="onMapFile(event)">
+<input type="file" id="jsonInput" accept=".json"   style="display:none" onchange="onJSONFile(event)">
+
+<script>
+// =====================================================
+//  状態
+// =====================================================
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+
+let mapImg     = null;
+let mapOpacity = 0.65;
+let tab        = 'area';   // 'area' | 'road'
+
+// エリア
+let areas       = [];
+let drawingArea = false;
+let curAreaPts  = [];
+let selAreaIdx  = null;
+let aColorIdx   = 0;
+
+// 道路
+let roads       = [];
+let drawingRoad = false;
+let curRoadPts  = [];
+let selRoadIdx  = null;
+let curRoadType = 'thick';
+
+let mousePos = null;
+let sharedEdgeCache = {};
+
+const SNAP   = 20;
+const SHARE_THR = 60;
+const ROAD_MP = { thick: 1, thin: 2, none: 3 };
+const ROAD_COLOR = { thick: '#ff8c00', thin: '#8bc34a' };
+
+const PALETTE = [
+  '#e9545f','#4ecca3','#f5a623','#7ed6df','#e056fd','#badc58',
+  '#ff9ff3','#54a0ff','#ffeaa7','#fd79a8','#00b894','#6c5ce7',
+  '#fdcb6e','#81ecec','#a29bfe','#fab1a0','#00cec9','#c0392b','#27ae60','#8e44ad',
+];
+function nextColor() { return PALETTE[aColorIdx++ % PALETTE.length]; }
+
+// =====================================================
+//  タブ切替
+// =====================================================
+function switchTab(t) {
+  tab = t;
+  document.getElementById('tabArea').classList.toggle('active', t==='area');
+  document.getElementById('tabRoad').classList.toggle('active', t==='road');
+  document.getElementById('areaControls').style.display = t==='area' ? '' : 'none';
+  document.getElementById('roadControls').style.display = t==='road' ? '' : 'none';
+  document.getElementById('stateBar').className = t==='area' ? 'area-mode' : 'road-mode';
+  // 描画中なら中断
+  if (t==='area') { cancelRoad(); }
+  else            { cancelDraw(); }
+  updateStateUI();
+  render();
+}
+
+// =====================================================
+//  マップ
+// =====================================================
+function loadMap() { document.getElementById('fileInput').click(); }
+function onMapFile(e) {
+  const f = e.target.files[0]; if (!f) return;
+  const img = new Image();
+  img.onload = () => { mapImg=img; canvas.width=img.naturalWidth; canvas.height=img.naturalHeight; render(); };
+  img.src = URL.createObjectURL(f);
+}
+window.addEventListener('load', () => { canvas.width=1200; canvas.height=750; updateStateUI(); render(); });
+function updateOpacity(v) { mapOpacity=v/100; document.getElementById('opVal').textContent=v+'%'; render(); }
+
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display==='none' ? '' : 'none';
+}
+
+// =====================================================
+//  エリア描画
+// =====================================================
+function startDrawing() { drawingArea=true; curAreaPts=[]; canvas.style.cursor='crosshair'; updateStateUI(); render(); }
+function confirmArea()  { if (curAreaPts.length<3){ alert('3点以上必要です'); return; } finishArea(); }
+function cancelDraw()   { drawingArea=false; curAreaPts=[]; canvas.style.cursor='default'; updateStateUI(); render(); }
+function undoPoint()    { if (curAreaPts.length>0){ curAreaPts.pop(); updateStateUI(); render(); } }
+
+function finishArea() {
+  areas.push({ id:Date.now(), color:nextColor(), name:`エリア_${areas.length+1}`,
+    capacity:null, note:'', polygon:[...curAreaPts] });
+  drawingArea=false; curAreaPts=[];
+  canvas.style.cursor='default';
+  rebuildSharedEdges(); updateStateUI(); updateSidebar(); selectArea(areas.length-1); render();
+}
+
+// =====================================================
+//  道路描画
+// =====================================================
+function setRoadType(t) {
+  curRoadType = t;
+  document.getElementById('rtThick').classList.toggle('active', t==='thick');
+  document.getElementById('rtThin').classList.toggle('active', t==='thin');
+}
+
+function confirmRoad() {
+  if (curRoadPts.length<2){ alert('2点以上必要です'); return; }
+  finishRoad();
+}
+function cancelRoad()  { drawingRoad=false; curRoadPts=[]; canvas.style.cursor='default'; updateStateUI(); render(); }
+function undoRoadPt()  { if (curRoadPts.length>0){ curRoadPts.pop(); updateStateUI(); render(); } }
+
+function finishRoad() {
+  roads.push({ id:Date.now(), type:curRoadType, name:`道路_${roads.length+1}`, points:[...curRoadPts] });
+  drawingRoad=false; curRoadPts=[];
+  canvas.style.cursor='default';
+  updateStateUI(); updateSidebar(); selectRoad(roads.length-1); render();
+}
+
+// =====================================================
+//  UI状態更新
+// =====================================================
+function updateStateUI() {
+  const lbl  = document.getElementById('stateLabel');
+  const ptC  = document.getElementById('ptCount');
+  const hint = document.getElementById('hint');
+
+  if (tab==='area') {
+    const bs = document.getElementById('btnStart'),
+          bc = document.getElementById('btnConfirm'),
+          bu = document.getElementById('btnUndo'),
+          bx = document.getElementById('btnCancel');
+    if (drawingArea) {
+      lbl.textContent = '✏ エリア描画中';
+      bs.style.display='none'; bx.style.display=bu.style.display='';
+      bc.style.display = curAreaPts.length>=3 ? '' : 'none';
+      ptC.textContent = curAreaPts.length+'点';
+      hint.textContent = 'クリックで頂点追加 → ●をクリック / ダブルクリック / 確定 でエリア完成 | Ctrl+Z 取消';
+    } else {
+      lbl.textContent = areas.length ? `✔ ${areas.length}エリア確定済み` : '● 待機中';
+      bs.style.display=''; bc.style.display=bu.style.display=bx.style.display='none'; ptC.textContent='';
+      hint.textContent = '「新しいエリア開始」→ 角をクリック → 確定 | 道路を登録するには「道路」タブへ';
+    }
+  } else {
+    const bc = document.getElementById('btnRoadConfirm'),
+          bu = document.getElementById('btnRoadUndo'),
+          bx = document.getElementById('btnRoadCancel');
+    if (drawingRoad) {
+      lbl.textContent = `✏ ${curRoadType==='thick'?'太い道':'細い道'}を引いています`;
+      bc.style.display = curRoadPts.length>=2 ? '' : 'none';
+      bu.style.display=bx.style.display='';
+      ptC.textContent = curRoadPts.length+'点';
+      hint.textContent = 'クリックでウェイポイント追加 → ダブルクリック / 確定 で道路完成 | Ctrl+Z 取消';
+    } else {
+      lbl.textContent = roads.length ? `✔ ${roads.length}本の道路登録済み` : '● タイプを選んでクリック開始';
+      bc.style.display=bu.style.display=bx.style.display='none'; ptC.textContent='';
+      hint.textContent = '道路タイプを選択してマップをクリックすると道路描画開始';
+    }
+  }
+}
+
+// =====================================================
+//  キャンバスイベント
+// =====================================================
+canvas.addEventListener('mousemove', e => { mousePos=getPos(e); render(); });
+canvas.addEventListener('mouseleave', () => { mousePos=null; render(); });
+
+canvas.addEventListener('click', e => {
+  const pt = getPos(e);
+  if (tab==='area') {
+    if (!drawingArea) { selectArea(hitTestArea(pt)); return; }
+    if (curAreaPts.length>=3 && dist(pt,curAreaPts[0]) < SNAP/getScale()) { finishArea(); return; }
+    curAreaPts.push({x:pt.x,y:pt.y}); updateStateUI(); render();
+  } else {
+    if (!drawingRoad) {
+      // 道路タブ: クリックで自動開始
+      drawingRoad=true; curRoadPts=[]; canvas.style.cursor='crosshair';
+    }
+    if (selRoadIdx!==null) { selectRoad(null); }
+    curRoadPts.push({x:pt.x,y:pt.y}); updateStateUI(); render();
+  }
+});
+
+canvas.addEventListener('dblclick', e => {
+  if (tab==='area' && drawingArea && curAreaPts.length>=3) { curAreaPts.pop(); finishArea(); }
+  if (tab==='road' && drawingRoad && curRoadPts.length>=2) { curRoadPts.pop(); finishRoad(); }
+});
+
+window.addEventListener('keydown', e => {
+  if (['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
+  if (e.key==='Escape') { cancelDraw(); cancelRoad(); }
+  if ((e.ctrlKey||e.metaKey) && e.key==='z') { e.preventDefault(); tab==='area' ? undoPoint() : undoRoadPt(); }
+  if (e.key==='Enter') { tab==='area' ? confirmArea() : confirmRoad(); }
+  if ((e.key==='Delete'||e.key==='Backspace') && !drawingArea && !drawingRoad) {
+    if (tab==='area' && selAreaIdx!=null) deleteArea(selAreaIdx,{stopPropagation:()=>{}});
+    if (tab==='road' && selRoadIdx!=null) deleteRoad(selRoadIdx,{stopPropagation:()=>{}});
+  }
+});
+
+// =====================================================
+//  座標・ユーティリティ
+// =====================================================
+function getPos(e) {
+  const r=canvas.getBoundingClientRect();
+  return {x:(e.clientX-r.left)*(canvas.width/r.width), y:(e.clientY-r.top)*(canvas.height/r.height)};
+}
+function getScale() { return canvas.width/canvas.getBoundingClientRect().width; }
+function dist(a,b) { return Math.hypot(a.x-b.x,a.y-b.y); }
+
+function hitTestArea(pt) {
+  for (let i=areas.length-1; i>=0; i--) if (pointInPoly(pt,areas[i].polygon)) return i;
+  return null;
+}
+function pointInPoly(pt,poly) {
+  let inside=false;
+  for (let i=0,j=poly.length-1; i<poly.length; j=i++) {
+    const xi=poly[i].x,yi=poly[i].y,xj=poly[j].x,yj=poly[j].y;
+    if ((yi>pt.y)!==(yj>pt.y) && pt.x<(xj-xi)*(pt.y-yi)/(yj-yi)+xi) inside=!inside;
+  }
+  return inside;
+}
+
+// =====================================================
+//  辺共有キャッシュ
+// =====================================================
+function edgeKey(ai,ei) { return `${ai}-${ei}`; }
+
+function rebuildSharedEdges() {
+  sharedEdgeCache = {};
+  for (let ai=0; ai<areas.length; ai++) {
+    const pa=areas[ai].polygon;
+    for (let ei=0; ei<pa.length; ei++) {
+      for (let bi=ai+1; bi<areas.length; bi++) {
+        const pb=areas[bi].polygon;
+        for (let fi=0; fi<pb.length; fi++) {
+          if (edgesShared(pa,ei,pb,fi)) {
+            sharedEdgeCache[edgeKey(ai,ei)] = {adj:bi, adjEi:fi};
+            sharedEdgeCache[edgeKey(bi,fi)] = {adj:ai, adjEi:ei};
+          }
+        }
+      }
+    }
+  }
+}
+function edgesShared(pa,ei,pb,fi) {
+  const a0=pa[ei],a1=pa[(ei+1)%pa.length],b0=pb[fi],b1=pb[(fi+1)%pb.length];
+  return (dist(a0,b0)<SHARE_THR&&dist(a1,b1)<SHARE_THR)||(dist(a0,b1)<SHARE_THR&&dist(a1,b0)<SHARE_THR);
+}
+
+// =====================================================
+//  道路→辺のマッピング
+// =====================================================
+function segsCross(p1,p2, p3,p4) {
+  // 2線分が交差するか（または近接するか）
+  function cross2d(a,b) { return a.x*b.y - a.y*b.x; }
+  function sub(a,b) { return {x:a.x-b.x, y:a.y-b.y}; }
+  const d1=sub(p2,p1), d2=sub(p4,p3), d3=sub(p3,p1);
+  const cross=cross2d(d1,d2);
+  if (Math.abs(cross)<1e-9) {
+    // 平行：最短距離チェック
+    return ptSegDist(p1,p3,p4)<18 || ptSegDist(p2,p3,p4)<18 ||
+           ptSegDist(p3,p1,p2)<18 || ptSegDist(p4,p1,p2)<18;
+  }
+  const t=cross2d(d3,d2)/cross, u=cross2d(d3,d1)/cross;
+  if (t>=0&&t<=1&&u>=0&&u<=1) return true;
+  // 近くを通る場合もカバー
+  return ptSegDist(p1,p3,p4)<14 || ptSegDist(p2,p3,p4)<14 ||
+         ptSegDist(p3,p1,p2)<14 || ptSegDist(p4,p1,p2)<14;
+}
+function ptSegDist(p,a,b) {
+  const dx=b.x-a.x, dy=b.y-a.y, len2=dx*dx+dy*dy;
+  if (len2<1e-9) return dist(p,a);
+  const t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/len2));
+  return dist(p,{x:a.x+t*dx,y:a.y+t*dy});
+}
+
+function getRoadTypeForEdge(ai, ei) {
+  // このエリア辺に交差・近接する道路のうち最もMPが低いものを返す
+  const poly=areas[ai].polygon;
+  const ep1=poly[ei], ep2=poly[(ei+1)%poly.length];
+  let best='none';
+  for (const road of roads) {
+    const pts=road.points;
+    for (let k=0; k<pts.length-1; k++) {
+      if (segsCross(ep1,ep2, pts[k],pts[k+1])) {
+        if (road.type==='thick') return 'thick';
+        if (best==='none') best='thin';
+      }
+    }
+  }
+  return best;
+}
+
+// =====================================================
+//  描画
+// =====================================================
+function render() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  if (!mapImg) {
+    ctx.fillStyle='#0f2040'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle='#4ecca3'; ctx.font='18px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('「マップ画像」ボタンで画像を読み込んでください', canvas.width/2, canvas.height/2);
+    return;
+  }
+
+  ctx.globalAlpha=mapOpacity; ctx.drawImage(mapImg,0,0); ctx.globalAlpha=1;
+
+  // 確定エリア
+  areas.forEach((a,i) => drawArea(a,i,i===selAreaIdx));
+
+  // 確定道路
+  roads.forEach((r,i) => drawRoad(r,i===selRoadIdx,false));
+
+  // 描画中エリア
+  if (drawingArea && curAreaPts.length>0) drawCurArea();
+
+  // 描画中道路
+  if (drawingRoad && curRoadPts.length>0) drawCurRoad();
+}
+
+function drawArea(area,idx,selected) {
+  const poly=area.polygon; if (poly.length<3) return;
+  const showEdge=document.getElementById('chkEdge').checked;
+  const showVtx =document.getElementById('chkVtx').checked;
+  const showLbl =document.getElementById('chkLbl').checked;
+
+  ctx.beginPath(); ctx.moveTo(poly[0].x,poly[0].y);
+  poly.forEach(p=>ctx.lineTo(p.x,p.y)); ctx.closePath();
+  ctx.fillStyle=area.color+Math.round((selected?0.46:0.24)*255).toString(16).padStart(2,'0');
+  ctx.fill();
+
+  // 辺（道路タイプで色変え）
+  for (let ei=0; ei<poly.length; ei++) {
+    const a=poly[ei], b=poly[(ei+1)%poly.length];
+    const rt = getRoadTypeForEdge(idx,ei);
+    const shared = sharedEdgeCache[edgeKey(idx,ei)];
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
+    ctx.strokeStyle = rt==='thick' ? '#ff8c00' : rt==='thin' ? '#8bc34a' : area.color;
+    ctx.lineWidth   = selected ? 2.5 : 2;
+    ctx.stroke();
+
+    if (showEdge && selected) {
+      const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+      const rtLabel = rt==='thick'?'●':rt==='thin'?'○':'';
+      const lbl = `e${idx}-${ei}${rtLabel}`;
+      ctx.font='9px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.lineWidth=2.5; ctx.strokeStyle='rgba(0,0,0,0.8)'; ctx.strokeText(lbl,mx,my);
+      ctx.fillStyle=rt==='thick'?'#ff8c00':rt==='thin'?'#8bc34a':'#aaa'; ctx.fillText(lbl,mx,my);
+    }
+  }
+
+  if (showVtx) {
+    poly.forEach(p=>{
+      ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2);
+      ctx.fillStyle=area.color; ctx.fill(); ctx.strokeStyle='#000'; ctx.lineWidth=1; ctx.stroke();
+    });
+  }
+  if (showLbl) {
+    const cx=poly.reduce((s,p)=>s+p.x,0)/poly.length;
+    const cy=poly.reduce((s,p)=>s+p.y,0)/poly.length;
+    drawLabel(area.name,cx,cy,13,'#fff');
+    if (area.capacity!=null) drawLabel(`×${area.capacity}`,cx,cy+17,11,'#4ecca3');
+  }
+}
+
+function drawRoad(road,selected,preview) {
+  const pts=road.points; if (pts.length<2) return;
+  const col=ROAD_COLOR[road.type]||'#aaa';
+  ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
+  pts.forEach(p=>ctx.lineTo(p.x,p.y));
+  ctx.strokeStyle=col;
+  ctx.lineWidth = selected ? 5 : (road.type==='thick' ? 4 : 2.5);
+  ctx.setLineDash(road.type==='thin' ? [10,6] : []);
+  ctx.stroke(); ctx.setLineDash([]);
+
+  if (selected) {
+    pts.forEach(p=>{
+      ctx.beginPath(); ctx.arc(p.x,p.y,5,0,Math.PI*2);
+      ctx.fillStyle=col; ctx.fill(); ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.stroke();
+    });
+  }
+}
+
+function drawCurArea() {
+  const pts=curAreaPts;
+  if (pts.length>=3) {
+    ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
+    pts.forEach(p=>ctx.lineTo(p.x,p.y)); ctx.closePath();
+    ctx.fillStyle='rgba(255,255,255,0.1)'; ctx.fill();
+  }
+  ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); pts.forEach(p=>ctx.lineTo(p.x,p.y));
+  if (mousePos) ctx.lineTo(mousePos.x,mousePos.y);
+  ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.setLineDash([8,5]); ctx.stroke(); ctx.setLineDash([]);
+  pts.forEach((p,i)=>{
+    const isF=i===0, snap=isF&&mousePos&&pts.length>=3&&dist(mousePos,pts[0])<SNAP/getScale();
+    ctx.beginPath(); ctx.arc(p.x,p.y,isF?(snap?14:9):4,0,Math.PI*2);
+    ctx.fillStyle=isF?(snap?'#4ecca3':'#e94560'):'#fff';
+    ctx.fill(); ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.stroke();
+  });
+}
+
+function drawCurRoad() {
+  const pts=curRoadPts; const col=ROAD_COLOR[curRoadType];
+  ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); pts.forEach(p=>ctx.lineTo(p.x,p.y));
+  if (mousePos) ctx.lineTo(mousePos.x,mousePos.y);
+  ctx.strokeStyle=col; ctx.lineWidth=curRoadType==='thick'?4:2.5;
+  ctx.setLineDash(curRoadType==='thin'?[10,6]:[]);
+  ctx.stroke(); ctx.setLineDash([]);
+  pts.forEach(p=>{
+    ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2);
+    ctx.fillStyle=col; ctx.fill(); ctx.strokeStyle='#000'; ctx.lineWidth=1; ctx.stroke();
+  });
+}
+
+function drawLabel(text,x,y,size,color) {
+  ctx.font=`bold ${size}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,0.75)'; ctx.strokeText(text,x,y);
+  ctx.fillStyle=color; ctx.fillText(text,x,y);
+}
+
+// =====================================================
+//  サイドバー
+// =====================================================
+function updateSidebar() {
+  // エリア一覧
+  document.getElementById('areaCount').textContent=areas.length;
+  const al=document.getElementById('areaList'); al.innerHTML='';
+  areas.forEach((a,i)=>{
+    const d=document.createElement('div');
+    d.className='list-item'+(i===selAreaIdx?' sel':'');
+    d.innerHTML=`<div class="swatch" style="background:${a.color}"></div>
+      <span class="item-name">${a.name}</span>
+      <span class="item-badge" style="background:#1a4a7a;color:#4ecca3">${a.capacity!=null?'×'+a.capacity:''}</span>
+      <span class="item-del" onclick="deleteArea(${i},event)">✕</span>`;
+    d.addEventListener('click',()=>selectArea(i));
+    al.appendChild(d);
+  });
+
+  // 道路一覧
+  document.getElementById('roadCount').textContent=roads.length;
+  const rl=document.getElementById('roadList'); rl.innerHTML='';
+  roads.forEach((r,i)=>{
+    const d=document.createElement('div');
+    d.className='list-item'+(i===selRoadIdx?' sel':'');
+    const bc=r.type==='thick'?'badge-thick':'badge-thin';
+    const bl=r.type==='thick'?'太':'細';
+    d.innerHTML=`<div class="swatch" style="background:${ROAD_COLOR[r.type]}"></div>
+      <span class="item-name">${r.name}</span>
+      <span class="item-badge ${bc}">${bl}</span>
+      <span class="item-del" onclick="deleteRoad(${i},event)">✕</span>`;
+    d.addEventListener('click',()=>selectRoad(i));
+    rl.appendChild(d);
+  });
+
+  updateStateUI();
+}
+
+function selectArea(idx) {
+  selAreaIdx=idx; selRoadIdx=null;
+  updateSidebar();
+  const pp=document.getElementById('propPanel'), ep=document.getElementById('edgePanel');
+  document.getElementById('areaPropExtra').style.display='';
+  document.getElementById('roadPropExtra').style.display='none';
+  if (idx==null) { pp.style.display='none'; ep.style.display='none'; render(); return; }
+  pp.style.display='block'; ep.style.display='block';
+  document.getElementById('propTitle').textContent='📐 エリアプロパティ';
+  const a=areas[idx];
+  document.getElementById('pName').value=a.name||'';
+  document.getElementById('pCap').value=a.capacity??'';
+  document.getElementById('pNote').value=a.note||'';
+  // 辺一覧
+  const el=document.getElementById('edgeList'); el.innerHTML='';
+  const poly=a.polygon;
+  for (let ei=0; ei<poly.length; ei++) {
+    const sh=sharedEdgeCache[edgeKey(idx,ei)];
+    const rt=getRoadTypeForEdge(idx,ei);
+    const rtHtml=rt==='thick'?`<span class="edge-road badge-thick">太</span>`:
+                  rt==='thin' ?`<span class="edge-road badge-thin">細</span>`:'';
+    const row=document.createElement('div'); row.className='edge-row';
+    row.innerHTML=`<span class="edge-id">e${idx}-${ei}</span>${rtHtml}`+
+      (sh?`<span class="edge-adj">↔ ${areas[sh.adj]?.name||'?'}</span>`:`<span class="edge-none-adj">外部境界</span>`);
+    el.appendChild(row);
+  }
+  document.querySelectorAll('#areaList .list-item')[idx]?.scrollIntoView({block:'nearest'});
+  render();
+}
+
+function selectRoad(idx) {
+  selRoadIdx=idx; selAreaIdx=null;
+  updateSidebar();
+  const pp=document.getElementById('propPanel'), ep=document.getElementById('edgePanel');
+  document.getElementById('areaPropExtra').style.display='none';
+  document.getElementById('roadPropExtra').style.display='';
+  ep.style.display='none';
+  if (idx==null) { pp.style.display='none'; render(); return; }
+  pp.style.display='block';
+  document.getElementById('propTitle').textContent='🛣 道路プロパティ';
+  const r=roads[idx];
+  document.getElementById('pName').value=r.name||'';
+  document.getElementById('pRoadType').value=r.type||'thick';
+  document.querySelectorAll('#roadList .list-item')[idx]?.scrollIntoView({block:'nearest'});
+  render();
+}
+
+function saveProp() {
+  if (selAreaIdx!=null) {
+    const a=areas[selAreaIdx];
+    a.name=document.getElementById('pName').value;
+    a.capacity=parseInt(document.getElementById('pCap').value)||null;
+    a.note=document.getElementById('pNote').value;
+  } else if (selRoadIdx!=null) {
+    const r=roads[selRoadIdx];
+    r.name=document.getElementById('pName').value;
+    r.type=document.getElementById('pRoadType').value;
+  }
+  updateSidebar(); render();
+}
+
+function deleteArea(idx,e) {
+  e.stopPropagation();
+  if (!confirm(`「${areas[idx].name}」を削除しますか？`)) return;
+  areas.splice(idx,1); selAreaIdx=null;
+  document.getElementById('propPanel').style.display='none';
+  document.getElementById('edgePanel').style.display='none';
+  rebuildSharedEdges(); updateSidebar(); render();
+}
+
+function deleteRoad(idx,e) {
+  e.stopPropagation();
+  if (!confirm(`「${roads[idx].name}」を削除しますか？`)) return;
+  roads.splice(idx,1); selRoadIdx=null;
+  document.getElementById('propPanel').style.display='none';
+  updateSidebar(); render();
+}
+
+// =====================================================
+//  JSON Export / Import
+// =====================================================
+function exportJSON() {
+  // edge_connectionsに道路タイプを付けて出力
+  const edgeConns=[];
+  const seen=new Set();
+  for (const [key,val] of Object.entries(sharedEdgeCache)) {
+    const [ai,ei]=[...key.split('-')].map(Number);
+    const sk=[key,edgeKey(val.adj,val.adjEi)].sort().join('|');
+    if (seen.has(sk)) continue; seen.add(sk);
+    const rt=getRoadTypeForEdge(ai,ei);
+    edgeConns.push({
+      edge_a:{area_idx:ai, area:areas[ai]?.name, edge_idx:ei, edge_id:`e${ai}-${ei}`},
+      edge_b:{area_idx:val.adj, area:areas[val.adj]?.name, edge_idx:val.adjEi, edge_id:`e${val.adj}-${val.adjEi}`},
+      road_type: rt,
+      mp_cost:   ROAD_MP[rt]
+    });
+  }
+
+  const data={
+    version:3,
+    map:{width:canvas.width,height:canvas.height},
+    areas: areas.map((a,idx)=>({
+      idx, id:a.id, name:a.name, color:a.color, capacity:a.capacity, note:a.note,
+      polygon: a.polygon.map(p=>[Math.round(p.x),Math.round(p.y)]),
+      edges: a.polygon.map((_,ei)=>{
+        const sh=sharedEdgeCache[edgeKey(idx,ei)];
+        const rt=getRoadTypeForEdge(idx,ei);
+        return { id:`e${idx}-${ei}`, road_type:rt, mp_cost:ROAD_MP[rt],
+          shared_with: sh?`e${sh.adj}-${sh.adjEi}`:null,
+          adj_area_idx: sh?sh.adj:null, adj_area_name: sh?areas[sh.adj]?.name:null };
+      })
+    })),
+    roads: roads.map((r,i)=>({
+      id:r.id, name:r.name, type:r.type, mp_cost:ROAD_MP[r.type],
+      points: r.points.map(p=>[Math.round(p.x),Math.round(p.y)])
+    })),
+    edge_connections: edgeConns
+  };
+
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='marengo_areas.json'; a.click();
+}
+
+function importJSON() { document.getElementById('jsonInput').click(); }
+function onJSONFile(e) {
+  const f=e.target.files[0]; if (!f) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try {
+      const d=JSON.parse(ev.target.result);
+      areas=(d.areas||[]).map(a=>({...a, polygon:(a.polygon||[]).map(p=>({x:p[0],y:p[1]}))}));
+      roads=(d.roads||[]).map(r=>({...r, points:(r.points||[]).map(p=>({x:p[0],y:p[1]}))}));
+      aColorIdx=areas.length; selAreaIdx=null; selRoadIdx=null;
+      document.getElementById('propPanel').style.display='none';
+      document.getElementById('edgePanel').style.display='none';
+      rebuildSharedEdges(); updateSidebar(); render();
+      alert(`エリア ${areas.length}件・道路 ${roads.length}本 を読み込みました`);
+    } catch(err){ alert('読み込みエラー: '+err.message); }
+  };
+  reader.readAsText(f);
+}
+</script>
+</body>
+</html>
