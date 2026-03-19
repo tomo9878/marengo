@@ -1,0 +1,14 @@
+{
+  "name": "triomphe-a-marengo",
+  "version": "0.1.0",
+  "description": "Triomphe à Marengo - online wargame",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "build-map": "node scripts/build-map.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

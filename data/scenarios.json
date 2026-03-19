@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "rounds": 16,
+  "initialMorale": {
+    "france":  { "uncommitted": 3, "total": 12 },
+    "austria": { "uncommitted": 0, "total": 12 }
+  },
+  "timeTrack": [
+    { "round": 1,  "time": "6:00AM",  "moraleGain": { "france": 0, "austria": 0 } },
+    { "round": 2,  "time": "7:00AM",  "moraleGain": { "france": 0, "austria": 0 } },
+    { "round": 3,  "time": "8:00AM",  "moraleGain": { "france": 0, "austria": 0 } },
+    { "round": 4,  "time": "9:00AM",  "moraleGain": { "france": 0, "austria": 0 } },
+    { "round": 5,  "time": "10:00AM", "moraleGain": { "france": 0, "austria": 0 } },
+    { "round": 6,  "time": "11:00AM", "moraleGain": { "france": 0, "austria": 0 } },
+    { "round": 7,  "time": "12:00PM", "moraleGain": { "france": 0, "austria": 0 } },
+    { "round": 8,  "time": "1:00PM",  "moraleGain": { "france": 0, "austria": 0 } },
+    { "round": 9,  "time": "2:00PM",  "moraleGain": { "france": 0, "austria": 0 } },
+    { "round": 10, "time": "3:00PM",  "moraleGain": { "france": 0, "austria": 0 } },
+    { "round": 11, "time": "4:00PM",  "moraleGain": { "france": 0, "austria": 0 } },
+    { "round": 12, "time": "5:00PM",  "moraleGain": { "france": 0, "austria": 0 } },
+    { "round": 13, "time": "6:00PM",  "moraleGain": { "france": 0, "austria": 0 } },
+    { "round": 14, "time": "7:00PM",  "moraleGain": { "france": 0, "austria": 0 } },
+    { "round": 15, "time": "8:00PM",  "moraleGain": { "france": 0, "austria": 0 } },
+    { "round": 16, "time": "9:00PM",  "moraleGain": { "france": 0, "austria": 0 } }
+  ],
+  "note_timeTrack": "TODO: ルールブックのタイムトラック図から各ラウンドの士気補充値を転記",
+  "reinforcements": {
+    "france": [
+      { "time": "5:00AM",  "round": 1,  "area": "renfort_500",  "entryRoad": "TODO" },
+      { "time": "11:00AM", "round": 6,  "area": "renfort_1100", "entryRoad": "TODO" },
+      { "time": "4:00PM",  "round": 11, "area": "renfort_1600", "entryRoad": "TODO" }
+    ],
+    "austria": {
+      "note": "Bormida川より進入。砲兵は7:00AM(round2)以降",
+      "entryRoad": "TODO",
+      "artilleryAvailableFrom": 2,
+      "bormidaBridgeTrafficBonus": 1
+    }
+  },
+  "victoryCondition": {
+    "decisiveVictory": "いずれかの軍の士気が0以下",
+    "marginalAustria": "9:00PMラウンド終了時、作戦目標ライン東側にオーストリア駒3個以上",
+    "marginalFrance":  "上記以外"
+  },
+  "specialRules": {
+    "frenchDisorder": {
+      "round": 1,
+      "description": "6AMラウンドのみ、フランス軍はいかなるアプローチもブロックできない。全フランス駒は混乱状態。再編成アクションで解除。"
+    }
+  }
+}
