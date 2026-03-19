@@ -152,8 +152,8 @@ triomphe/
 | Phase | 内容 | 状態 |
 |---|---|---|
 | Phase 0 | マップデータ入力（手作業） | ✅ 完了 |
-| Phase 1 | データ層整備 | ⬜ 未着手 |
-| Phase 2 | ゲームエンジンコア（サーバー側） | ⬜ 未着手 |
+| Phase 1 | データ層整備 | ✅ 完了 |
+| Phase 2 | ゲームエンジンコア（サーバー側） | ✅ 完了（199テスト全通過） |
 | Phase 3 | WebSocketサーバー＋接続管理 | ⬜ 未着手 |
 | Phase 4 | クライアントUI | ⬜ 未着手 |
 | Phase 5 | インタラプション制御の結合 | ⬜ 未着手 |
@@ -217,85 +217,90 @@ triomphe/
   crossingTraffic: { [crossingId]: [{pieceId, steps}] }
   log: []
   ```
-- [ ] `createInitialState()`
-- [ ] `cloneState(state)`
-- [ ] `serialize / deserialize` — JSON保存/復元
+- [x] `createInitialState()`
+- [x] `cloneState(state)`
+- [x] `serialize / deserialize` — JSON保存/復元
 
-### 2-B. MapGraph.js
-- [ ] `getAdjacentLocales(localeId)`
-- [ ] `getOppositeApproach(localeId, edgeIdx)`
-- [ ] `getApproachWidth(localeId, edgeIdx)`
-- [ ] `getApproachSymbols(localeId, edgeIdx)`
-- [ ] `isFullyBlocked / isPartiallyBlocked`
-- [ ] `getRoadPath(fromId, toId, roadType)` — 最大3ステップ
-- [ ] `getCrossings(localeA, localeB)`
-- [ ] `getLocaleOccupant(localeId, state)` — france/austria/null
-- [ ] `getPiecesAt(localeId, position, state)`
-- [ ] `getLocaleCount(localeId, side, state)`
+### 2-B. MapGraph.js ✅
+- [x] `getAdjacentLocales(localeId)`
+- [x] `getOppositeApproach(localeId, edgeIdx)`
+- [x] `getApproachWidth(localeId, edgeIdx)`
+- [x] `getApproachSymbols(localeId, edgeIdx)`
+- [x] `isFullyBlocked / isPartiallyBlocked`
+- [x] `getRoadPath(fromId, toId, roadType)` — 最大3ステップ
+- [x] `getCrossings(localeA, localeB)`
+- [x] `getLocaleOccupant(localeId, state)` — france/austria/null
+- [x] `getPiecesAt(localeId, position, state)`
+- [x] `getLocaleCount(localeId, side, state)`
 
-### 2-C. MoveValidator.js
-- [ ] `getLegalMoveActions(pieceId, state)` — 合法行軍一覧
-  - [ ] 悪路行軍（混乱状態チェック）
-  - [ ] 道路行軍（交通制限チェック）
-  - [ ] 防御行軍
-  - [ ] 継続行軍（騎兵のみ）
-- [ ] `getLegalAttackActions(pieceId, state)` — 合法攻撃一覧
-  - [ ] 急襲（ブロック状況チェック）
-  - [ ] 突撃（アプローチブロック条件）
-  - [ ] 砲撃（砲兵・アプローチ条件）
-- [ ] `canReorganize(localeId, state)`
-- [ ] `getCommandCost(action)` — 無料条件含む
+### 2-C. MoveValidator.js ✅
+- [x] `getLegalMoveActions(pieceId, state)` — 合法行軍一覧
+  - [x] 悪路行軍（混乱状態チェック）
+  - [x] 道路行軍（交通制限チェック）
+  - [x] 防御行軍
+  - [x] 継続行軍（騎兵のみ）
+- [x] `getLegalAttackActions(pieceId, state)` — 合法攻撃一覧
+  - [x] 急襲（ブロック状況チェック）
+  - [x] 突撃（アプローチブロック条件）
+  - [x] 砲撃（砲兵・アプローチ条件）
+- [x] `canReorganize(localeId, state)`
+- [x] `getCommandCost(action)` — 無料条件含む
 
-### 2-D. CombatResolver.js
+### 2-D. CombatResolver.js ✅
 
 #### 急襲（Section 9）
-- [ ] `initiateRaid(attackers, targetLocaleId, defenseApproachIdx, state)`
-  → `pendingInterruption: { type:'defense_response', ... }` を返す
-- [ ] `resolveRaidAfterResponse(response, state)`
-  - [ ] 完全ブロック → 防御側勝利
-  - [ ] それ以外 → 攻撃側勝利
-  - [ ] 退却処理（Section 13）
-  - [ ] 士気投入
+- [x] `resolveRaid(params, state)` — 攻守判定・退却・士気投入
+  - [x] 完全ブロック → 防御側勝利
+  - [x] それ以外 → 攻撃側勝利
+  - [x] 退却処理（Section 13）
+  - [x] 士気投入（wide+2駒+初回で2個）
 
 #### 突撃（Section 11）
-- [ ] `initiateAssault(attackApproachIdx, state)` → 防御先導駒待ち
-- [ ] `receiveDefenseLeaders(pieces, state)` → 攻撃先導駒待ち
-- [ ] `receiveAttackLeaders(pieces, state)` → 防御砲撃判定
-- [ ] `resolveDefensiveArtillery(state)` → カウンター待ち
-- [ ] `receiveCounterAttack(pieces, state)` → 勝敗計算
-- [ ] `calculateAssaultResult(state)` — Σ攻撃先導 - ペナルティ - Σ防御先導 - Σカウンター
-- [ ] `applyReductions(state)` → 減少割振り待ち（防御側）
-- [ ] `completeAssault(reductionChoices, state)`
+- [x] `calculateAssaultResult(params, state)` — Σ攻撃先導 - ペナルティ - Σ防御先導 - Σカウンター
+- [x] `calculateAssaultReductions(params, state)` — 戦力減少量計算
+- [x] `applyAssaultReductions(params, state)` — 先導駒優先で適用
+- [x] `completeAssault(params, state)` — 退却 or 前進
+- [x] `getValidAssaultLeaders / getValidCounterPieces`
 
 #### 砲撃（Section 10）
-- [ ] `declareBombardment(artilleryId, targetLocaleId, state)`
-- [ ] `completeBombardment(state)` → 減少する駒待ち（防御側）
-- [ ] `cancelBombardment(state)`
+- [x] `completeBombardment(params, state)` — 優先順位付き駒選択
+- [x] `getBombardmentTargets(params, state)` — 減少対象一覧
 
 #### 退却（Section 13）
-- [ ] `initiateRetreat(losingLocaleId, attackInfo, state)` → 退却先待ち
-- [ ] `resolveRetreat(destinations, state)`
-  - [ ] 砲兵除去
-  - [ ] アプローチ駒に減少（narrow=1, wide=2）
-  - [ ] リザーブ歩兵に減少
-  - [ ] 退却先なし → 除去
+- [x] `calculateRetreatReductions(params, state)` — 砲兵除去・アプローチ減少・リザーブ減少
+- [x] `resolveRetreat(params, state)` — 退却先選択・除去
+- [x] `getValidRetreatDestinations(params, state)`
 
-### 2-E. MoraleManager.js
-- [ ] `getTotalMorale(side, state)`
-- [ ] `periodicMoraleUpdate(state)`
-- [ ] `investMorale(side, localeId, count, state)`
-- [ ] `reduceMorale(side, amount, state)`
-- [ ] `moraleCleanup(activePlayer, state)`
-- [ ] `checkMoraleCollapse(state)` → `{ collapsed, side }`
+### 2-E. MoraleManager.js ✅
+- [x] `getTotalMorale(side, state)`
+- [x] `periodicMoraleUpdate(round, state)`
+- [x] `investMorale(side, localeId, count, state)`
+- [x] `reduceMorale(side, amount, state)`
+- [x] `moraleCleanup(activePlayer, round, state)`
+- [x] `checkMoraleCollapse(state)` → `{ collapsed, side }`
+- [x] `getMapTokens(side, state)`
 
-### 2-F. TurnManager.js
-- [ ] `startTurn(state)` — 定期士気更新 + アプローチクリーンアップ
-- [ ] `executeAction(action, state)` — アクション実行（インタラプション生成含む）
-- [ ] `endActionPhase(state)` — 士気クリーンアップ → ターン交代
-- [ ] `advanceRound(state)`
-- [ ] `checkVictory(state)` → `{ winner, type: 'decisive'|'marginal'|null }`
-- [ ] フランス混乱状態管理（6AMのみ → 再編成で解除）
-- [ ] 増援の時間管理（5AM/11AM/4PM）
+### 2-F. TurnManager.js ✅
+- [x] `startPlayerTurn(state)` — 定期士気更新 + アプローチクリーンアップ
+- [x] `applyApproachCleanup(state)`
+- [x] `executeAction(action, state)` — アクション実行（インタラプション生成含む）
+- [x] `processInterruption(response, state)` — 全インタラプション連鎖処理
+- [x] `endActionPhase(state)` — 士気クリーンアップ → ターン交代
+- [x] `advanceRound(state)`
+- [x] `checkVictory(state)` → `{ winner, type: 'decisive'|'marginal'|null }`
+- [x] フランス混乱状態管理（再編成で解除）
+- [ ] 増援の時間管理（5AM/11AM/4PM）← Phase 4でゲームフロー実装時に追加
+
+### 2-G. テスト ✅
+- [x] Jest セットアップ
+- [x] `tests/helpers/stateFactory.js`
+- [x] `GameState.test.js` — 状態定義・クローン・シリアライズ等
+- [x] `MapGraph.test.js` — 実マップデータ使用、隣接・道路・ブロック
+- [x] `MoveValidator.test.js` — 全アクションタイプの合法手検証
+- [x] `CombatResolver.test.js` — 急襲・突撃・砲撃・退却の全パス
+- [x] `MoraleManager.test.js` — 投入・低下・クリーンアップ・崩壊
+- [x] `TurnManager.test.js` — ターンサイクル・インタラプション連鎖・勝利判定
+- **合計 199テスト 全通過**
 
 ---
 
