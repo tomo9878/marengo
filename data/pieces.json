@@ -10,21 +10,21 @@
       { "id": "FR-INF-5",  "type": "infantry", "maxStrength": 2, "startArea": "au_debut" },
       { "id": "FR-INF-6",  "type": "infantry", "maxStrength": 2, "startArea": "au_debut" },
       { "id": "FR-INF-7",  "type": "infantry", "maxStrength": 2, "startArea": "au_debut" },
+      { "id": "FR-INF-8",  "type": "infantry", "maxStrength": 2, "startArea": "au_debut" },
       { "id": "FR-CAV-1",  "type": "cavalry",  "maxStrength": 2, "startArea": "au_debut" },
       { "id": "FR-CAV-2",  "type": "cavalry",  "maxStrength": 2, "startArea": "au_debut" },
-      { "id": "FR-CAV-3",  "type": "cavalry",  "maxStrength": 2, "startArea": "au_debut" },
-      { "id": "FR-ART-1",  "type": "artillery","maxStrength": 1, "startArea": "au_debut" }
+      { "id": "FR-CAV-3",  "type": "cavalry",  "maxStrength": 2, "startArea": "au_debut" }
     ],
     "renforts": [
-      { "id": "FR-INF-8",  "type": "infantry", "maxStrength": 3, "startArea": "renfort_1100" },
       { "id": "FR-INF-9",  "type": "infantry", "maxStrength": 3, "startArea": "renfort_1100" },
-      { "id": "FR-INF-10", "type": "infantry", "maxStrength": 2, "startArea": "renfort_1600" },
+      { "id": "FR-INF-10", "type": "infantry", "maxStrength": 3, "startArea": "renfort_1100" },
       { "id": "FR-INF-11", "type": "infantry", "maxStrength": 2, "startArea": "renfort_1600" },
       { "id": "FR-INF-12", "type": "infantry", "maxStrength": 2, "startArea": "renfort_1600" },
       { "id": "FR-INF-13", "type": "infantry", "maxStrength": 2, "startArea": "renfort_1600" },
+      { "id": "FR-INF-14", "type": "infantry", "maxStrength": 2, "startArea": "renfort_1600" },
       { "id": "FR-CAV-4",  "type": "cavalry",  "maxStrength": 2, "startArea": "renfort_500"  },
       { "id": "FR-CAV-5",  "type": "cavalry",  "maxStrength": 2, "startArea": "renfort_500"  },
-      { "id": "FR-ART-2",  "type": "artillery","maxStrength": 1, "startArea": "renfort_1100" }
+      { "id": "FR-ART-1",  "type": "artillery","maxStrength": 1, "startArea": "renfort_1100" }
     ]
   },
   "austria": {
