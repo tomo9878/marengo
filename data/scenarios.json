@@ -24,6 +24,16 @@
     { "round": 16, "time": "9:00PM",  "moraleGain": { "france": 0, "austria": 0 } }
   ],
   "note_timeTrack": "TODO: ルールブックのタイムトラック図から各ラウンドの士気補充値を転記",
+  "franceAuDebutSetup": [
+    { "localeIdx": 5,  "count": 2 },
+    { "localeIdx": 11, "count": 2 },
+    { "localeIdx": 10, "count": 1 },
+    { "localeIdx": 20, "count": 1 },
+    { "localeIdx": 38, "count": 1 },
+    { "localeIdx": 46, "count": 2 },
+    { "localeIdx": 28, "count": 1 },
+    { "localeIdx": 12, "count": 1 }
+  ],
   "reinforcements": {
     "france": [
       { "time": "5:00AM",  "round": 1,  "area": "renfort_500",  "entryRoad": "TODO" },

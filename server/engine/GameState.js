@@ -154,15 +154,39 @@ function createPieceState(pieceId, def, disordered = false) {
  */
 function initializePieces(state) {
   const next = cloneState(state);
-  const allDefs = [
-    ...pieceDefs.france.auDebut,
-    ...pieceDefs.france.renforts,
-    ...pieceDefs.austria.setup,
-  ];
-  for (const def of allDefs) {
-    const isFrench = def.id.startsWith('FR');
-    next.pieces[def.id] = createPieceState(def.id, def, isFrench);
+
+  // --- オーストリア全駒：オフマップ待機（localeId: null）---
+  for (const def of pieceDefs.austria.setup) {
+    next.pieces[def.id] = createPieceState(def.id, def, false);
   }
+
+  // --- フランス増援：オフマップ待機（localeId: null）---
+  for (const def of pieceDefs.france.renforts) {
+    next.pieces[def.id] = createPieceState(def.id, def, true);
+  }
+
+  // --- フランス初期配置（auDébut）：ランダムにセットアップエリアへ配置 ---
+  // シャッフル（Fisher-Yates）
+  const auDebutIds = pieceDefs.france.auDebut.map(d => d.id);
+  for (let i = auDebutIds.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [auDebutIds[i], auDebutIds[j]] = [auDebutIds[j], auDebutIds[i]];
+  }
+
+  // セットアップエリアに駒を割り当て
+  let idx = 0;
+  for (const slot of scenarios.franceAuDebutSetup) {
+    for (let c = 0; c < slot.count; c++) {
+      const pieceId = auDebutIds[idx++];
+      const def = pieceDefs.france.auDebut.find(d => d.id === pieceId);
+      const ps = createPieceState(pieceId, def, true); // 混乱状態（6AMルール）
+      ps.localeId = slot.localeIdx;
+      ps.position = 'reserve';
+      ps.faceUp = false;
+      next.pieces[pieceId] = ps;
+    }
+  }
+
   return next;
 }
 
