@@ -31,16 +31,24 @@
       { "id": "AU-INF-1",  "type": "infantry", "maxStrength": 3, "startArea": "austrian_setup" },
       { "id": "AU-INF-2",  "type": "infantry", "maxStrength": 3, "startArea": "austrian_setup" },
       { "id": "AU-INF-3",  "type": "infantry", "maxStrength": 3, "startArea": "austrian_setup" },
-      { "id": "AU-INF-4",  "type": "infantry", "maxStrength": 3, "startArea": "austrian_setup" },
-      { "id": "AU-INF-5",  "type": "infantry", "maxStrength": 3, "startArea": "austrian_setup" },
+      { "id": "AU-INF-4",  "type": "infantry", "maxStrength": 2, "startArea": "austrian_setup" },
+      { "id": "AU-INF-5",  "type": "infantry", "maxStrength": 2, "startArea": "austrian_setup" },
       { "id": "AU-INF-6",  "type": "infantry", "maxStrength": 2, "startArea": "austrian_setup" },
       { "id": "AU-INF-7",  "type": "infantry", "maxStrength": 2, "startArea": "austrian_setup" },
       { "id": "AU-INF-8",  "type": "infantry", "maxStrength": 2, "startArea": "austrian_setup" },
+      { "id": "AU-INF-9",  "type": "infantry", "maxStrength": 2, "startArea": "austrian_setup" },
+      { "id": "AU-INF-10", "type": "infantry", "maxStrength": 2, "startArea": "austrian_setup" },
+      { "id": "AU-INF-11", "type": "infantry", "maxStrength": 2, "startArea": "austrian_setup" },
+      { "id": "AU-INF-12", "type": "infantry", "maxStrength": 2, "startArea": "austrian_setup" },
+      { "id": "AU-INF-13", "type": "infantry", "maxStrength": 2, "startArea": "austrian_setup" },
       { "id": "AU-CAV-1",  "type": "cavalry",  "maxStrength": 2, "startArea": "austrian_setup" },
       { "id": "AU-CAV-2",  "type": "cavalry",  "maxStrength": 2, "startArea": "austrian_setup" },
       { "id": "AU-CAV-3",  "type": "cavalry",  "maxStrength": 2, "startArea": "austrian_setup" },
-      { "id": "AU-ART-1",  "type": "artillery","maxStrength": 1, "startArea": "austrian_setup" },
-      { "id": "AU-ART-2",  "type": "artillery","maxStrength": 1, "startArea": "austrian_setup" }
+      { "id": "AU-CAV-4",  "type": "cavalry",  "maxStrength": 2, "startArea": "austrian_setup" },
+      { "id": "AU-CAV-5",  "type": "cavalry",  "maxStrength": 2, "startArea": "austrian_setup" },
+      { "id": "AU-CAV-6",  "type": "cavalry",  "maxStrength": 2, "startArea": "austrian_setup" },
+      { "id": "AU-CAV-7",  "type": "cavalry",  "maxStrength": 2, "startArea": "austrian_setup" },
+      { "id": "AU-ART-1",  "type": "artillery","maxStrength": 1, "startArea": "austrian_setup" }
     ]
   }
 }
