@@ -47,7 +47,6 @@
       { "id": "AU-CAV-4",  "type": "cavalry",  "maxStrength": 2, "startArea": "austrian_setup" },
       { "id": "AU-CAV-5",  "type": "cavalry",  "maxStrength": 2, "startArea": "austrian_setup" },
       { "id": "AU-CAV-6",  "type": "cavalry",  "maxStrength": 2, "startArea": "austrian_setup" },
-      { "id": "AU-CAV-7",  "type": "cavalry",  "maxStrength": 2, "startArea": "austrian_setup" },
       { "id": "AU-ART-1",  "type": "artillery","maxStrength": 1, "startArea": "austrian_setup" }
     ]
   }
