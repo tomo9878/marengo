@@ -378,6 +378,74 @@ describe('GameController', () => {
     });
   });
 
+  describe('auto-save after turn', () => {
+    test('auto-save is called after a valid ACTION (non-game-over)', () => {
+      const state = makeState();
+      const { controller, wsF } = setupRoom(state);
+
+      const newState = makeState({ round: 2 });
+      TurnManager.executeAction.mockReturnValue({ newState, interruption: null });
+      TurnManager.checkVictory.mockReturnValue(null);
+
+      controller.handleMessage(wsF, JSON.stringify({
+        type: 'ACTION',
+        action: { type: 'reorganize', localeId: 'L1' },
+      }));
+
+      // SaveManager.saveGame called once for auto-save (not game over)
+      expect(SaveManager.saveGame).toHaveBeenCalledWith('test-game', newState);
+    });
+
+    test('auto-save is called after a valid RESPONSE (non-game-over)', () => {
+      const state = makeState({
+        controlToken: { holder: 'austria', reason: 'defense_response' },
+        pendingInterruption: {
+          type: 'defense_response',
+          waitingFor: 'austria',
+          context: {},
+        },
+      });
+      const { controller, wsA } = setupRoom(state);
+
+      const newState = makeState({ round: 3, pendingInterruption: null });
+      TurnManager.processInterruption.mockReturnValue({ newState, interruption: null });
+      TurnManager.checkVictory.mockReturnValue(null);
+
+      controller.handleMessage(wsA, JSON.stringify({
+        type: 'RESPONSE',
+        response: { pieceIds: [] },
+      }));
+
+      expect(SaveManager.saveGame).toHaveBeenCalledWith('test-game', newState);
+    });
+
+    test('auto-save failure is non-fatal: controller continues broadcasting', () => {
+      const state = makeState();
+      const { controller, wsF, wsA } = setupRoom(state);
+
+      const newState = makeState({ round: 2 });
+      TurnManager.executeAction.mockReturnValue({ newState, interruption: null });
+      TurnManager.checkVictory.mockReturnValue(null);
+
+      // Make SaveManager.saveGame throw
+      SaveManager.saveGame.mockImplementationOnce(() => { throw new Error('Disk full'); });
+
+      // Should not throw
+      expect(() => {
+        controller.handleMessage(wsF, JSON.stringify({
+          type: 'ACTION',
+          action: { type: 'reorganize', localeId: 'L1' },
+        }));
+      }).not.toThrow();
+
+      // STATE_UPDATE should still be broadcast to both players
+      const franceMsgs = wsF.send.mock.calls.map(c => JSON.parse(c[0]));
+      const austriaMsgs = wsA.send.mock.calls.map(c => JSON.parse(c[0]));
+      expect(franceMsgs.some(m => m.type === 'STATE_UPDATE')).toBe(true);
+      expect(austriaMsgs.some(m => m.type === 'STATE_UPDATE')).toBe(true);
+    });
+  });
+
   describe('handleReconnect', () => {
     test('handleReconnect: no pending interruption → sends STATE_UPDATE + CONTROL_TRANSFER only', () => {
       const state = makeState({ pendingInterruption: null });

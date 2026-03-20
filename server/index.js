@@ -101,6 +101,51 @@ wss.on('request', (req, res) => {
     return;
   }
 
+  // POST /saves/:gameId/save — manual save of current room state
+  if (req.method === 'POST' && reqUrl.startsWith('/saves/') && reqUrl.endsWith('/save')) {
+    const gameId = reqUrl.slice('/saves/'.length, -'/save'.length);
+    if (!gameId) {
+      res.writeHead(400);
+      res.end(JSON.stringify({ error: 'Missing gameId' }));
+      return;
+    }
+    const roomEntry = rooms.get(gameId);
+    if (!roomEntry) {
+      res.writeHead(404);
+      res.end(JSON.stringify({ error: 'Room not found' }));
+      return;
+    }
+    try {
+      const state = roomEntry.room.getState();
+      SaveManager.saveGame(gameId, state);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, gameId }));
+    } catch (err) {
+      res.writeHead(500);
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
+  // DELETE /saves/:gameId — delete a save file
+  if (req.method === 'DELETE' && reqUrl.startsWith('/saves/')) {
+    const gameId = reqUrl.slice('/saves/'.length);
+    if (!gameId) {
+      res.writeHead(400);
+      res.end(JSON.stringify({ error: 'Missing gameId' }));
+      return;
+    }
+    try {
+      SaveManager.deleteGame(gameId);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, gameId }));
+    } catch (err) {
+      res.writeHead(500);
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
   // Static file serving
   if (req.method === 'GET') {
     // GET / → client/index.html

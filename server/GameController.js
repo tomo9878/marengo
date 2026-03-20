@@ -322,6 +322,13 @@ class GameController {
       return;
     }
 
+    // Auto-save after every state change (non-fatal)
+    try {
+      SaveManager.saveGame(this.room.gameId, newState);
+    } catch (e) {
+      console.warn('Auto-save failed:', e.message);
+    }
+
     // Broadcast sanitized state to both players
     this.room.broadcastSanitized(newState);
 

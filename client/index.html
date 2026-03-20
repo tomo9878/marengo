@@ -527,6 +527,7 @@
   <div id="commandPoints">
     <span class="cp-label">司令:</span>
   </div>
+  <button id="btnSave" title="セーブ/ロード" style="margin-left:auto;background:#0f3460;border:1px solid #1a4a80;border-radius:4px;color:#eee;font-size:14px;padding:4px 10px;cursor:pointer;">💾</button>
 </div>
 
 <!-- MAIN -->
@@ -591,6 +592,10 @@
     </div>
     <button id="connectBtn">接続</button>
     <div id="connectError"></div>
+    <hr style="border-color:#0f3460;margin:16px 0 12px;" />
+    <div style="font-size:12px;color:#aaa;margin-bottom:8px;">保存済みゲームを再開</div>
+    <button id="btnShowSaveList" style="display:block;width:100%;padding:7px;background:#0f3460;border:1px solid #1a4a80;border-radius:4px;color:#eee;font-size:12px;cursor:pointer;">セーブ一覧を確認</button>
+    <div id="saveListContainer" style="display:none;margin-top:10px;max-height:160px;overflow-y:auto;"></div>
   </div>
 </div>
 

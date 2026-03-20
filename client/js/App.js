@@ -8,6 +8,7 @@ import Connection from './Connection.js';
 import MapRenderer from './MapRenderer.js';
 import InfoPanel from './InfoPanel.js';
 import ActionPanel from './ActionPanel.js';
+import SavePanel from './SavePanel.js';
 
 // ---------------------------------------------------------------------------
 // App state
@@ -20,6 +21,7 @@ let connection = null;
 let mapRenderer = null;
 let infoPanel = null;
 let actionPanel = null;
+let savePanel = null;
 let mapData = null;
 
 let selectedPieceId = null;
@@ -30,12 +32,15 @@ let attackTargets = [];
 // DOM refs
 // ---------------------------------------------------------------------------
 
-const connectModal   = document.getElementById('connectModal');
-const inputGameId    = document.getElementById('inputGameId');
-const inputSide      = document.getElementById('inputSide');
-const connectBtn     = document.getElementById('connectBtn');
-const connectError   = document.getElementById('connectError');
-const canvas         = document.getElementById('mapCanvas');
+const connectModal      = document.getElementById('connectModal');
+const inputGameId       = document.getElementById('inputGameId');
+const inputSide         = document.getElementById('inputSide');
+const connectBtn        = document.getElementById('connectBtn');
+const connectError      = document.getElementById('connectError');
+const canvas            = document.getElementById('mapCanvas');
+const btnSave           = document.getElementById('btnSave');
+const btnShowSaveList   = document.getElementById('btnShowSaveList');
+const saveListContainer = document.getElementById('saveListContainer');
 
 // ---------------------------------------------------------------------------
 // Initialization
@@ -82,6 +87,47 @@ async function init() {
   inputGameId.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') handleConnect();
   });
+
+  // Save panel (created with no gameId initially; updated after connect)
+  savePanel = new SavePanel(null, () => {});
+  if (btnSave) {
+    btnSave.addEventListener('click', () => {
+      if (savePanel) savePanel.toggle();
+    });
+  }
+
+  // Resume from save: show save list in connect modal
+  if (btnShowSaveList) {
+    btnShowSaveList.addEventListener('click', async () => {
+      if (!saveListContainer) return;
+      saveListContainer.style.display = 'block';
+      saveListContainer.innerHTML = '<div style="color:#aaa;font-size:11px;">読み込み中...</div>';
+      try {
+        const resp = await fetch('/saves');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const saves = await resp.json();
+        if (saves.length === 0) {
+          saveListContainer.innerHTML = '<div style="color:#555;font-size:11px;font-style:italic;">セーブデータなし</div>';
+          return;
+        }
+        saveListContainer.innerHTML = '';
+        saves.forEach(entry => {
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid #0f3460;cursor:pointer;';
+          const savedAt = entry.savedAt ? new Date(entry.savedAt).toLocaleString('ja-JP') : '—';
+          row.innerHTML = `<span style="font-size:11px;color:#ccc;">${entry.gameId} — ${savedAt}</span>
+            <span style="font-size:10px;color:#4ecca3;margin-left:6px;">選択</span>`;
+          row.addEventListener('click', () => {
+            if (inputGameId) inputGameId.value = entry.gameId;
+            saveListContainer.style.display = 'none';
+          });
+          saveListContainer.appendChild(row);
+        });
+      } catch (e) {
+        saveListContainer.innerHTML = `<div style="color:#e94560;font-size:11px;">エラー: ${e.message}</div>`;
+      }
+    });
+  }
 
   // Initial render
   scheduleRender();
@@ -291,10 +337,16 @@ function handleConnect() {
 
   myState = { side, gameId };
 
+  // Update savePanel with the new gameId
+  if (savePanel) {
+    savePanel.gameId = gameId;
+  }
+
   connection = new Connection(gameId, side, {
     onJoined(s, gId, gs) {
       myState.side   = s;
       myState.gameId = gId;
+      if (savePanel) savePanel.gameId = gId;
       connectModal.classList.add('hidden');
       applyState(gs);
       infoPanel.addLog(`ゲームに参加しました (${s === 'france' ? 'フランス' : 'オーストリア'})`);
