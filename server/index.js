@@ -207,6 +207,7 @@ wss.on('connection', (ws, req) => {
   // Join or reconnect
   if (isReconnect) {
     room.reconnect(ws, side);
+    controller.handleReconnect(side);
   } else {
     const joinError = room.join(ws, side);
     if (joinError) {

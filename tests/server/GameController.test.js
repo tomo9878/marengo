@@ -11,6 +11,20 @@ jest.mock('../../server/engine/TurnManager', () => ({
   applyApproachCleanup: jest.fn(),
 }));
 
+// Mock CombatResolver for reconnect/timeout tests that use auto-response
+jest.mock('../../server/engine/CombatResolver', () => ({
+  getValidRetreatDestinations: jest.fn(() => []),
+  resolveRaid: jest.fn(),
+  calculateAssaultResult: jest.fn(),
+  calculateAssaultReductions: jest.fn(),
+  applyAssaultReductions: jest.fn(),
+  completeAssault: jest.fn(),
+  completeBombardment: jest.fn(),
+  getBombardmentTargets: jest.fn(() => []),
+  calculateRetreatReductions: jest.fn(() => ({ reductions: [] })),
+  resolveRetreat: jest.fn(() => ({ newState: {}, moraleInvestment: 0, moraleReduction: 0 })),
+}));
+
 // Mock SaveManager
 jest.mock('../../server/SaveManager', () => ({
   saveGame: jest.fn(),
@@ -361,6 +375,244 @@ describe('GameController', () => {
       const ct = msgs.find(m => m.type === 'CONTROL_TRANSFER');
       // No CONTROL_TRANSFER after game over
       expect(ct).toBeUndefined();
+    });
+  });
+
+  describe('handleReconnect', () => {
+    test('handleReconnect: no pending interruption → sends STATE_UPDATE + CONTROL_TRANSFER only', () => {
+      const state = makeState({ pendingInterruption: null });
+      const { room, controller, wsF, wsA } = setupRoom(state);
+
+      // France disconnects and reconnects
+      room.disconnect('france');
+      const newWsF = { send: jest.fn(), close: jest.fn() };
+      room.reconnect(newWsF, 'france');
+
+      controller.handleReconnect('france');
+
+      const msgs = newWsF.send.mock.calls.map(c => JSON.parse(c[0]));
+      expect(msgs.some(m => m.type === 'STATE_UPDATE')).toBe(true);
+      expect(msgs.some(m => m.type === 'CONTROL_TRANSFER')).toBe(true);
+      expect(msgs.some(m => m.type === 'INTERRUPTION')).toBe(false);
+    });
+
+    test('handleReconnect: pending interruption for reconnected side → re-sends INTERRUPTION', () => {
+      const interruptionCtx = { attackerPieceIds: ['FR1'], targetLocaleId: 'L2', defenseEdgeIdx: 0, availableDefenders: ['AT1'], maxResponse: 1 };
+      const state = makeState({
+        controlToken: { holder: 'austria', reason: 'defense_response' },
+        pendingInterruption: {
+          type: 'defense_response',
+          waitingFor: 'austria',
+          context: interruptionCtx,
+        },
+      });
+      const { room, controller, wsF, wsA } = setupRoom(state);
+
+      // Austria disconnects and reconnects
+      room.disconnect('austria');
+      const newWsA = { send: jest.fn(), close: jest.fn() };
+      room.reconnect(newWsA, 'austria');
+
+      controller.handleReconnect('austria');
+
+      const msgs = newWsA.send.mock.calls.map(c => JSON.parse(c[0]));
+      expect(msgs.some(m => m.type === 'STATE_UPDATE')).toBe(true);
+      expect(msgs.some(m => m.type === 'CONTROL_TRANSFER')).toBe(true);
+
+      const intMsg = msgs.find(m => m.type === 'INTERRUPTION');
+      expect(intMsg).toBeDefined();
+      expect(intMsg.interruptionType).toBe('defense_response');
+      expect(intMsg.waitingFor).toBe('austria');
+    });
+
+    test('handleReconnect: pending interruption for OTHER side → no INTERRUPTION sent', () => {
+      const interruptionCtx = { attackerPieceIds: ['FR1'], targetLocaleId: 'L2', defenseEdgeIdx: 0, availableDefenders: ['AT1'], maxResponse: 1 };
+      const state = makeState({
+        controlToken: { holder: 'austria', reason: 'defense_response' },
+        pendingInterruption: {
+          type: 'defense_response',
+          waitingFor: 'austria',
+          context: interruptionCtx,
+        },
+      });
+      const { room, controller, wsF, wsA } = setupRoom(state);
+
+      // France reconnects (interruption is waiting for Austria, not France)
+      room.disconnect('france');
+      const newWsF = { send: jest.fn(), close: jest.fn() };
+      room.reconnect(newWsF, 'france');
+
+      controller.handleReconnect('france');
+
+      const msgs = newWsF.send.mock.calls.map(c => JSON.parse(c[0]));
+      expect(msgs.some(m => m.type === 'STATE_UPDATE')).toBe(true);
+      expect(msgs.some(m => m.type === 'CONTROL_TRANSFER')).toBe(true);
+      expect(msgs.some(m => m.type === 'INTERRUPTION')).toBe(false);
+    });
+
+    test('handleReconnect: sends CONTROL_TRANSFER with current holder info', () => {
+      const state = makeState({
+        controlToken: { holder: 'austria', reason: 'defense_response' },
+        pendingInterruption: {
+          type: 'defense_response',
+          waitingFor: 'austria',
+          context: {},
+        },
+      });
+      const { room, controller, wsF, wsA } = setupRoom(state);
+
+      room.disconnect('france');
+      const newWsF = { send: jest.fn(), close: jest.fn() };
+      room.reconnect(newWsF, 'france');
+
+      controller.handleReconnect('france');
+
+      const msgs = newWsF.send.mock.calls.map(c => JSON.parse(c[0]));
+      const ct = msgs.find(m => m.type === 'CONTROL_TRANSFER');
+      expect(ct).toBeDefined();
+      expect(ct.holder).toBe('austria');
+      expect(ct.reason).toBe('defense_response');
+    });
+  });
+
+  describe('interruption timeout', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    test('_startInterruptionTimeout: sets a timer', () => {
+      const state = makeState();
+      const { controller } = setupRoom(state);
+
+      controller._startInterruptionTimeout(5000);
+      expect(controller._interruptionTimer).not.toBeNull();
+
+      controller._clearInterruptionTimeout();
+    });
+
+    test('_clearInterruptionTimeout: clears the timer', () => {
+      const state = makeState();
+      const { controller } = setupRoom(state);
+
+      controller._startInterruptionTimeout(5000);
+      controller._clearInterruptionTimeout();
+
+      expect(controller._interruptionTimer).toBeNull();
+    });
+
+    test('_startInterruptionTimeout: replaces existing timer', () => {
+      const state = makeState();
+      const { controller } = setupRoom(state);
+
+      controller._startInterruptionTimeout(5000);
+      const firstTimer = controller._interruptionTimer;
+
+      controller._startInterruptionTimeout(10000);
+      const secondTimer = controller._interruptionTimer;
+
+      expect(secondTimer).not.toBeNull();
+      // Both are timers, second replaced first
+      controller._clearInterruptionTimeout();
+    });
+
+    test('timeout fires and processes auto-response via processInterruption', () => {
+      const interruptionCtx = { attackerPieceIds: ['FR1'], targetLocaleId: 'L2', defenseEdgeIdx: 0, availableDefenders: ['AT1'], maxResponse: 1 };
+      const state = makeState({
+        controlToken: { holder: 'austria', reason: 'defense_response' },
+        pendingInterruption: {
+          type: 'defense_response',
+          waitingFor: 'austria',
+          context: interruptionCtx,
+        },
+      });
+      const { room, controller, wsF, wsA } = setupRoom(state);
+
+      const newState = makeState({ pendingInterruption: null, controlToken: { holder: 'france', reason: 'active_player' } });
+      TurnManager.processInterruption.mockReturnValue({ newState, interruption: null });
+
+      controller._startInterruptionTimeout(1000);
+      jest.advanceTimersByTime(1001);
+
+      // processInterruption should have been called with auto-response
+      expect(TurnManager.processInterruption).toHaveBeenCalled();
+      const callArgs = TurnManager.processInterruption.mock.calls[0];
+      // Auto-response for defense_response: { pieceIds: [] }
+      expect(callArgs[0]).toEqual({ pieceIds: [] });
+    });
+
+    test('timeout does nothing if no pending interruption', () => {
+      const state = makeState({ pendingInterruption: null });
+      const { controller } = setupRoom(state);
+
+      controller._startInterruptionTimeout(1000);
+      jest.advanceTimersByTime(1001);
+
+      // processInterruption should NOT have been called
+      expect(TurnManager.processInterruption).not.toHaveBeenCalled();
+    });
+
+    test('response received before timeout clears the timer', () => {
+      const state = makeState({
+        controlToken: { holder: 'austria', reason: 'defense_response' },
+        pendingInterruption: {
+          type: 'defense_response',
+          waitingFor: 'austria',
+          context: {},
+        },
+      });
+      const { room, controller, wsF, wsA } = setupRoom(state);
+
+      const newState = makeState({ pendingInterruption: null, controlToken: { holder: 'france', reason: 'active_player' } });
+      TurnManager.processInterruption.mockReturnValue({ newState, interruption: null });
+
+      // Trigger interruption timeout via action (sets timer)
+      // Manually start the timer to simulate it being set
+      controller._startInterruptionTimeout(60000);
+      expect(controller._interruptionTimer).not.toBeNull();
+
+      // Austria responds before timeout
+      controller.handleMessage(wsA, JSON.stringify({
+        type: 'RESPONSE',
+        response: { pieceIds: ['AT1'] },
+      }));
+
+      // Timer should be cleared
+      expect(controller._interruptionTimer).toBeNull();
+
+      // Advance time - no extra processInterruption calls
+      const callCount = TurnManager.processInterruption.mock.calls.length;
+      jest.advanceTimersByTime(60001);
+      expect(TurnManager.processInterruption.mock.calls.length).toBe(callCount);
+    });
+
+    test('action with interruption starts timeout automatically', () => {
+      const state = makeState();
+      const { controller, wsF } = setupRoom(state);
+
+      const interruptionCtx = { attackerPieceIds: ['FR1'], targetLocaleId: 'L2', defenseEdgeIdx: 0, availableDefenders: ['AT1'], maxResponse: 1 };
+      const interruption = {
+        type: 'defense_response',
+        waitingFor: 'austria',
+        context: interruptionCtx,
+      };
+      const newState = makeState({
+        controlToken: { holder: 'austria', reason: 'defense_response' },
+        pendingInterruption: interruption,
+      });
+      TurnManager.executeAction.mockReturnValue({ newState, interruption });
+
+      controller.handleMessage(wsF, JSON.stringify({
+        type: 'ACTION',
+        action: { type: 'raid', pieceId: 'FR1', targetLocaleId: 'L2', defenseEdgeIdx: 0 },
+      }));
+
+      // Timer should be set automatically
+      expect(controller._interruptionTimer).not.toBeNull();
+      controller._clearInterruptionTimeout();
     });
   });
 });

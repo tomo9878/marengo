@@ -16,7 +16,7 @@
       {
         "displayName": "server",
         "testEnvironment": "node",
-        "testMatch": ["**/tests/engine/**/*.test.js", "**/tests/server/**/*.test.js"]
+        "testMatch": ["**/tests/engine/**/*.test.js", "**/tests/server/**/*.test.js", "**/tests/integration/**/*.test.js"]
       },
       {
         "displayName": "client",

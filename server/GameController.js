@@ -10,6 +10,10 @@ const TurnManager = require('./engine/TurnManager');
 const { checkVictory } = require('./engine/TurnManager');
 const SaveManager = require('./SaveManager');
 const { sanitize } = require('./StateSanitizer');
+const { INTERRUPTION } = require('./engine/GameState');
+const { getValidRetreatDestinations } = require('./engine/CombatResolver');
+
+const INTERRUPTION_TIMEOUT_MS = 120000; // 2 minutes
 
 class GameController {
   /**
@@ -17,6 +21,7 @@ class GameController {
    */
   constructor(room) {
     this.room = room;
+    this._interruptionTimer = null;
   }
 
   /**
@@ -49,6 +54,41 @@ class GameController {
       default:
         this._sendError(ws, 'UNKNOWN_MESSAGE', `Unknown message type: ${msg.type}`);
     }
+  }
+
+  /**
+   * Handle reconnection for a side: re-send state and any pending interruption.
+   * @param {string} side - 'france' | 'austria'
+   */
+  handleReconnect(side) {
+    const state = this.room.getState();
+    if (!state) return;
+
+    // Re-send current sanitized state
+    const sanitizedState = sanitize(state, side);
+    this.room.sendTo(side, {
+      type: 'STATE_UPDATE',
+      gameState: sanitizedState,
+    });
+
+    // If there is a pending interruption waiting for the reconnected side, re-send it
+    if (state.pendingInterruption && state.pendingInterruption.waitingFor === side) {
+      const waitingState = sanitize(state, side);
+      this.room.sendTo(side, {
+        type: 'INTERRUPTION',
+        interruptionType: state.pendingInterruption.type,
+        waitingFor: state.pendingInterruption.waitingFor,
+        options: state.pendingInterruption.context,
+        gameState: waitingState,
+      });
+    }
+
+    // Send CONTROL_TRANSFER
+    this.room.sendTo(side, {
+      type: 'CONTROL_TRANSFER',
+      holder: state.controlToken.holder,
+      reason: state.controlToken.reason,
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -126,6 +166,128 @@ class GameController {
       return;
     }
 
+    this._clearInterruptionTimeout();
+    this._afterStateChange(result.newState, result.interruption);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Timeout handling
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Start a timeout for interruption response. Clears any existing timer.
+   * @param {number} [ms]
+   */
+  _startInterruptionTimeout(ms = INTERRUPTION_TIMEOUT_MS) {
+    this._clearInterruptionTimeout();
+    this._interruptionTimer = setTimeout(() => {
+      this._handleInterruptionTimeout();
+    }, ms);
+  }
+
+  /**
+   * Clear any pending interruption timeout.
+   */
+  _clearInterruptionTimeout() {
+    if (this._interruptionTimer !== null) {
+      clearTimeout(this._interruptionTimer);
+      this._interruptionTimer = null;
+    }
+  }
+
+  /**
+   * Auto-respond to an interruption after timeout.
+   */
+  _handleInterruptionTimeout() {
+    this._interruptionTimer = null;
+    const state = this.room.getState();
+    if (!state || !state.pendingInterruption) return;
+
+    const intType = state.pendingInterruption.type;
+    const ctx = state.pendingInterruption.context;
+    let autoResponse;
+
+    switch (intType) {
+      case INTERRUPTION.DEFENSE_RESPONSE:
+        // Auto: defender declines (no pieces)
+        autoResponse = { pieceIds: [] };
+        break;
+
+      case INTERRUPTION.ASSAULT_DEF_LEADERS:
+        // Auto: no leaders
+        autoResponse = { leaderIds: [] };
+        break;
+
+      case INTERRUPTION.ASSAULT_ATK_LEADERS:
+        // Auto: first eligible piece from atkAssaultIds
+        autoResponse = { leaderIds: ctx.atkAssaultIds && ctx.atkAssaultIds.length > 0
+          ? [ctx.atkAssaultIds[0]]
+          : [] };
+        break;
+
+      case INTERRUPTION.ASSAULT_DEF_ARTILLERY:
+        // Auto: don't fire
+        autoResponse = { fire: false };
+        break;
+
+      case INTERRUPTION.ASSAULT_COUNTER:
+        // Auto: no counter pieces
+        autoResponse = { counterIds: [] };
+        break;
+
+      case INTERRUPTION.ASSAULT_REDUCTIONS: {
+        // Auto: default distribution (no custom choice)
+        autoResponse = { atkApproachChoice: [] };
+        break;
+      }
+
+      case INTERRUPTION.BOMBARDMENT_REDUCTION: {
+        // Auto: first available target
+        const firstTarget = ctx.availableTargets && ctx.availableTargets.length > 0
+          ? ctx.availableTargets[0]
+          : null;
+        autoResponse = { targetPieceId: firstTarget };
+        break;
+      }
+
+      case INTERRUPTION.RETREAT_DESTINATION: {
+        // Auto: first valid destination per piece
+        const destinations = {};
+        const pieces = state.pieces || {};
+        const losingLocaleId = ctx.losingLocaleId;
+        const losingSide = ctx.losingSide || ctx.losingside;
+
+        for (const piece of Object.values(pieces)) {
+          if (piece.localeId === losingLocaleId && piece.side === losingSide && piece.strength > 0) {
+            const validDests = getValidRetreatDestinations(piece.id, losingLocaleId, ctx.attackInfo, state);
+            if (validDests.length > 0) {
+              destinations[piece.id] = validDests[0];
+            }
+          }
+        }
+        autoResponse = { destinations };
+        break;
+      }
+
+      default:
+        // Unknown type, just respond with empty object
+        autoResponse = {};
+    }
+
+    // Add to game log
+    const logMsg = `[AUTO] Timeout auto-response for ${intType}`;
+    const stateWithLog = { ...state, log: [...(state.log || []), { round: state.round, message: logMsg }] };
+    this.room.setState(stateWithLog);
+
+    // Process the auto-response
+    let result;
+    try {
+      result = TurnManager.processInterruption(autoResponse, stateWithLog);
+    } catch (err) {
+      // If processing fails, just log and move on
+      return;
+    }
+
     this._afterStateChange(result.newState, result.interruption);
   }
 
@@ -165,6 +327,9 @@ class GameController {
 
     // Send interruption or control transfer
     if (interruption) {
+      // Start timeout waiting for response
+      this._startInterruptionTimeout();
+
       // Send INTERRUPTION to the waiting player
       const waitingFor = interruption.waitingFor;
       const waitingState = sanitize(newState, waitingFor);
