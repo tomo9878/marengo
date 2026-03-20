@@ -72,6 +72,7 @@ async function init() {
   // Init map renderer (with or without map data)
   mapRenderer = new MapRenderer(canvas, mapData || { areas: [], map: { width: 2700, height: 1799 } });
   mapRenderer._onRenderRequest = scheduleRender;
+  mapRenderer.onImageLoad = scheduleRender;
   mapRenderer.fitToCanvas();
 
   // Canvas click: piece / locale selection

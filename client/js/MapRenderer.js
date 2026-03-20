@@ -44,9 +44,54 @@ export default class MapRenderer {
     // Interaction callbacks
     this.onLocaleClick = null;
     this.onPieceClick = null;
+    // Called after a piece image finishes loading so the caller can re-render
+    this.onImageLoad = null;
+
+    // Preload piece images
+    this._images = {};
+    this._loadImages();
 
     // Bind canvas events
     this._bindEvents();
+  }
+
+  _loadImages() {
+    const names = [
+      'FRINF1', 'FRINF2', 'FRINF3',
+      'FRCAV1', 'FRCAV2',
+      'FRART1',
+      'FRback',
+      'AUINF1', 'AUINF2', 'AUINF3',
+      'AUCAV1', 'AUCAV2',
+      'AUART1',
+      'AUback',
+    ];
+    for (const name of names) {
+      const img = new Image();
+      img.onload = () => {
+        this._images[name] = img;
+        if (this.onImageLoad) this.onImageLoad();
+      };
+      img.src = `/assets/images/${name}.png`;
+    }
+  }
+
+  /** Return the image key for a piece based on side, type, and current strength. */
+  _getPieceImageKey(piece) {
+    if (!piece.type) {
+      // Face-down enemy piece
+      return piece.side === 'france' ? 'FRback' : 'AUback';
+    }
+    const pre = piece.side === 'france' ? 'FR' : 'AU';
+    const s = Math.max(1, piece.strength || 1);
+    if (piece.type === 'infantry') {
+      return `${pre}INF${Math.min(3, s)}`;
+    } else if (piece.type === 'cavalry') {
+      return `${pre}CAV${Math.min(2, s)}`;
+    } else {
+      // artillery always strength 1 image
+      return `${pre}ART1`;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -215,68 +260,58 @@ export default class MapRenderer {
     const ctx = this.ctx;
     ctx.save();
 
-    const bgColor = piece.side === 'france' ? FR_COLOR : AU_COLOR;
-    const isHidden = !piece.type;
+    const rx = x - pw / 2;
+    const ry = y - ph / 2;
+    const radius = 2;
 
-    // Border
-    if (isSelected) {
-      ctx.shadowColor = '#4ecca3';
-      ctx.shadowBlur = 8;
-    } else if (piece.disordered) {
-      ctx.shadowColor = '#f0c040';
-      ctx.shadowBlur = 4;
-    }
+    const imgKey = this._getPieceImageKey(piece);
+    const img = this._images[imgKey];
+    const imgReady = img && img.complete && img.naturalWidth > 0;
 
-    // Background
-    ctx.fillStyle = bgColor;
-    ctx.beginPath();
-    ctx.roundRect
-      ? ctx.roundRect(x - pw/2, y - ph/2, pw, ph, 2)
-      : ctx.rect(x - pw/2, y - ph/2, pw, ph);
-    ctx.fill();
-
-    // Disorder border
-    if (piece.disordered) {
-      ctx.strokeStyle = '#f0c040';
-      ctx.lineWidth = 1.5;
-    } else if (isSelected) {
-      ctx.strokeStyle = '#4ecca3';
-      ctx.lineWidth = 1.5;
+    if (imgReady) {
+      // Draw block image scaled to piece size
+      ctx.drawImage(img, rx, ry, pw, ph);
     } else {
-      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-      ctx.lineWidth = 0.5;
-    }
-    ctx.beginPath();
-    ctx.roundRect
-      ? ctx.roundRect(x - pw/2, y - ph/2, pw, ph, 2)
-      : ctx.rect(x - pw/2, y - ph/2, pw, ph);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
+      // Fallback: solid color + text until images load
+      const bgColor = piece.side === 'france' ? FR_COLOR : AU_COLOR;
+      ctx.fillStyle = bgColor;
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(rx, ry, pw, ph, radius) : ctx.rect(rx, ry, pw, ph);
+      ctx.fill();
 
-    // Text
-    if (this._zoom >= 0.35) {
-      ctx.fillStyle = '#fff';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      if (isHidden) {
-        ctx.font = `bold ${Math.max(7, 10 * this._zoom)}px sans-serif`;
-        ctx.fillText('？', x, y);
-      } else {
-        const typeIcon = { infantry: '歩', cavalry: '騎', artillery: '砲' }[piece.type] || '?';
-        const strText = piece.strength != null ? String(piece.strength) : '?';
-
-        if (pw > 22) {
-          ctx.font = `bold ${Math.max(6, 9 * this._zoom)}px sans-serif`;
-          ctx.fillText(typeIcon, x - pw * 0.18, y);
-          ctx.font = `${Math.max(6, 8 * this._zoom)}px sans-serif`;
-          ctx.fillText(strText, x + pw * 0.2, y);
+      if (this._zoom >= 0.35) {
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        if (!piece.type) {
+          ctx.font = `bold ${Math.max(7, 10 * this._zoom)}px sans-serif`;
+          ctx.fillText('？', x, y);
         } else {
+          const icon = { infantry: '歩', cavalry: '騎', artillery: '砲' }[piece.type] || '?';
           ctx.font = `bold ${Math.max(5, 8 * this._zoom)}px sans-serif`;
-          ctx.fillText(typeIcon, x, y);
+          ctx.fillText(icon, x, y);
         }
       }
     }
+
+    // Selection / disorder border overlay (always on top)
+    if (isSelected) {
+      ctx.shadowColor = '#4ecca3';
+      ctx.shadowBlur = 8;
+      ctx.strokeStyle = '#4ecca3';
+      ctx.lineWidth = Math.max(1.5, 2 * this._zoom);
+    } else if (piece.disordered) {
+      ctx.shadowColor = '#f0c040';
+      ctx.shadowBlur = 4;
+      ctx.strokeStyle = '#f0c040';
+      ctx.lineWidth = Math.max(1, 1.5 * this._zoom);
+    } else {
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = 0.5;
+    }
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(rx, ry, pw, ph, radius) : ctx.rect(rx, ry, pw, ph);
+    ctx.stroke();
 
     ctx.restore();
   }
