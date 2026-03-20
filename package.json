@@ -12,8 +12,18 @@
     "test:coverage": "jest --coverage"
   },
   "jest": {
-    "testEnvironment": "node",
-    "testMatch": ["**/tests/**/*.test.js"]
+    "projects": [
+      {
+        "displayName": "server",
+        "testEnvironment": "node",
+        "testMatch": ["**/tests/engine/**/*.test.js", "**/tests/server/**/*.test.js"]
+      },
+      {
+        "displayName": "client",
+        "testEnvironment": "node",
+        "testMatch": ["**/tests/client/**/*.test.js"]
+      }
+    ]
   },
   "dependencies": {
     "ws": "^8.18.0"

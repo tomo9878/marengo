@@ -14,10 +14,13 @@
  *   - Attach message/close handlers
  *
  * Also handles HTTP GET /saves to list save files.
+ * Also serves static client files.
  */
 
 const { WebSocketServer } = require('ws');
 const { URL } = require('url');
+const path = require('path');
+const fs = require('fs');
 const GameRoom = require('./GameRoom');
 const GameController = require('./GameController');
 const SaveManager = require('./SaveManager');
@@ -25,6 +28,53 @@ const { createInitialState, initializePieces } = require('./engine/GameState');
 const { sanitize } = require('./StateSanitizer');
 
 const PORT = process.env.PORT || 3000;
+
+// Project root (one level above server/)
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+
+// MIME type map
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js':   'application/javascript; charset=utf-8',
+  '.css':  'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png':  'image/png',
+  '.jpg':  'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif':  'image/gif',
+  '.svg':  'image/svg+xml',
+  '.ico':  'image/x-icon',
+};
+
+/**
+ * Serve a static file safely, ensuring it's within the project root.
+ */
+function serveStatic(filePath, res) {
+  // Resolve to absolute and ensure it stays within PROJECT_ROOT
+  const resolved = path.resolve(filePath);
+  if (!resolved.startsWith(PROJECT_ROOT + path.sep) && resolved !== PROJECT_ROOT) {
+    res.writeHead(403);
+    res.end('Forbidden');
+    return;
+  }
+
+  fs.readFile(resolved, (err, data) => {
+    if (err) {
+      if (err.code === 'ENOENT') {
+        res.writeHead(404);
+        res.end('Not found');
+      } else {
+        res.writeHead(500);
+        res.end('Internal server error');
+      }
+      return;
+    }
+    const ext = path.extname(resolved).toLowerCase();
+    const mime = MIME_TYPES[ext] || 'application/octet-stream';
+    res.writeHead(200, { 'Content-Type': mime });
+    res.end(data);
+  });
+}
 
 // gameId → { room: GameRoom, controller: GameController, timeout: NodeJS.Timeout|null }
 const rooms = new Map();
@@ -34,9 +84,12 @@ const RECONNECT_TIMEOUT_MS = 30 * 60 * 1000;
 
 const wss = new WebSocketServer({ port: PORT });
 
-// Handle plain HTTP requests (e.g. GET /saves)
+// Handle plain HTTP requests
 wss.on('request', (req, res) => {
-  if (req.method === 'GET' && req.url === '/saves') {
+  const reqUrl = req.url.split('?')[0];  // strip query string
+
+  // GET /saves
+  if (req.method === 'GET' && reqUrl === '/saves') {
     try {
       const saves = SaveManager.listSaves();
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -46,6 +99,39 @@ wss.on('request', (req, res) => {
       res.end(JSON.stringify({ error: err.message }));
     }
     return;
+  }
+
+  // Static file serving
+  if (req.method === 'GET') {
+    // GET / → client/index.html
+    if (reqUrl === '/' || reqUrl === '/index.html') {
+      serveStatic(path.join(PROJECT_ROOT, 'client', 'index.html'), res);
+      return;
+    }
+
+    // GET /js/* → client/js/*
+    if (reqUrl.startsWith('/js/')) {
+      const rel = reqUrl.slice('/js/'.length);
+      if (rel && !rel.includes('..')) {
+        serveStatic(path.join(PROJECT_ROOT, 'client', 'js', rel), res);
+        return;
+      }
+    }
+
+    // GET /assets/* → client/assets/*
+    if (reqUrl.startsWith('/assets/')) {
+      const rel = reqUrl.slice('/assets/'.length);
+      if (rel && !rel.includes('..')) {
+        serveStatic(path.join(PROJECT_ROOT, 'client', 'assets', rel), res);
+        return;
+      }
+    }
+
+    // GET /data/map.json → data/map.json
+    if (reqUrl === '/data/map.json') {
+      serveStatic(path.join(PROJECT_ROOT, 'data', 'map.json'), res);
+      return;
+    }
   }
 
   res.writeHead(404);

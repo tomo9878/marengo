@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Triomphe à Marengo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #1a1a2e;
+      --panel:     #16213e;
+      --border:    #0f3460;
+      --accent-r:  #e94560;
+      --accent-g:  #4ecca3;
+      --fr-color:  #3a7bd5;
+      --au-color:  #c0392b;
+      --text:      #eee;
+      --sidebar-w: 220px;
+      --header-h:  54px;
+      --log-h:     46px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+      font-size: 13px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── HEADER ── */
+    #header {
+      height: var(--header-h);
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 12px;
+      flex-shrink: 0;
+      flex-wrap: nowrap;
+    }
+
+    #timeTrack {
+      display: flex;
+      gap: 3px;
+      flex-shrink: 0;
+    }
+
+    .time-step {
+      padding: 3px 5px;
+      border-radius: 3px;
+      background: #0f3460;
+      color: #888;
+      font-size: 11px;
+      cursor: default;
+    }
+
+    .time-step.active {
+      background: var(--fr-color);
+      color: #fff;
+      font-weight: bold;
+    }
+
+    #roundInfo {
+      font-size: 12px;
+      color: #aaa;
+      flex-shrink: 0;
+    }
+
+    #turnIndicator {
+      font-size: 13px;
+      font-weight: bold;
+      flex-shrink: 0;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: #0f3460;
+    }
+
+    #turnIndicator.my-turn  { background: var(--accent-g); color: #000; }
+    #turnIndicator.opponent { color: #888; }
+    #turnIndicator.waiting  { background: #b8860b; color: #fff; }
+
+    #commandPoints {
+      display: flex;
+      gap: 3px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .cp-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 1px solid #aaa;
+      display: inline-block;
+    }
+
+    .cp-dot.filled { background: var(--accent-g); border-color: var(--accent-g); }
+    .cp-label { font-size: 11px; color: #aaa; margin-right: 2px; }
+
+    /* ── MAIN ── */
+    #main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    #mapContainer {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: #0a0f1e;
+    }
+
+    #mapCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      cursor: crosshair;
+    }
+
+    #mapCanvas.dimmed { opacity: 0.6; }
+
+    /* ── SIDEBAR ── */
+    #sidebar {
+      width: var(--sidebar-w);
+      flex-shrink: 0;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-section {
+      border-bottom: 1px solid var(--border);
+      padding: 8px 10px;
+    }
+
+    .sidebar-section h3 {
+      font-size: 11px;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+
+    /* Morale */
+    #moralePanel .morale-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 4px;
+    }
+
+    .morale-label {
+      width: 20px;
+      font-size: 11px;
+      font-weight: bold;
+    }
+
+    .morale-label.fr { color: var(--fr-color); }
+    .morale-label.au { color: var(--au-color); }
+
+    .morale-bar-bg {
+      flex: 1;
+      height: 10px;
+      background: #0a0f1e;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .morale-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.3s;
+    }
+
+    .morale-bar-fill.fr { background: var(--fr-color); }
+    .morale-bar-fill.au { background: var(--au-color); }
+
+    .morale-num {
+      width: 20px;
+      text-align: right;
+      font-size: 11px;
+      color: #ccc;
+    }
+
+    /* Piece Info */
+    #pieceInfo .piece-detail {
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    #pieceInfo .piece-name {
+      font-weight: bold;
+      font-size: 13px;
+      margin-bottom: 3px;
+    }
+
+    #pieceInfo .piece-name.fr { color: var(--fr-color); }
+    #pieceInfo .piece-name.au { color: var(--au-color); }
+
+    #pieceInfo .disordered-tag {
+      display: inline-block;
+      background: #b8860b;
+      color: #fff;
+      font-size: 10px;
+      padding: 1px 4px;
+      border-radius: 2px;
+      margin-left: 4px;
+    }
+
+    #pieceInfo .no-selection {
+      color: #555;
+      font-style: italic;
+      font-size: 12px;
+    }
+
+    /* Action Panel */
+    #actionPanel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 8px 10px;
+    }
+
+    .action-group {
+      margin-bottom: 8px;
+    }
+
+    .action-group-label {
+      font-size: 10px;
+      color: #666;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .action-btn {
+      display: block;
+      width: 100%;
+      padding: 6px 8px;
+      margin-bottom: 3px;
+      background: #0f3460;
+      border: 1px solid #1a4a80;
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 12px;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    .action-btn:hover:not(:disabled) { background: #1a5a90; }
+    .action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .action-btn.danger { border-color: var(--accent-r); }
+    .action-btn.danger:hover:not(:disabled) { background: #6b1020; }
+
+    .action-btn.confirm { background: #1a4a30; border-color: var(--accent-g); }
+    .action-btn.confirm:hover:not(:disabled) { background: #2a6a40; }
+
+    #turnEndBtn {
+      margin-top: auto;
+      padding: 8px;
+      background: #1a1a2e;
+      border-top: 1px solid var(--border);
+    }
+
+    #turnEndBtn button {
+      display: block;
+      width: 100%;
+      padding: 8px;
+      background: #0f3460;
+      border: 1px solid var(--accent-g);
+      border-radius: 4px;
+      color: var(--accent-g);
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    #turnEndBtn button:hover:not(:disabled) { background: #1a4a30; }
+    #turnEndBtn button:disabled { opacity: 0.35; cursor: not-allowed; border-color: #555; color: #555; }
+
+    /* Interruption panel */
+    #interruptionPanel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 8px 10px;
+      overflow-y: auto;
+    }
+
+    .interruption-title {
+      font-size: 12px;
+      font-weight: bold;
+      color: #b8860b;
+      margin-bottom: 8px;
+      border-bottom: 1px solid #b8860b;
+      padding-bottom: 4px;
+    }
+
+    .interruption-instruction {
+      font-size: 11px;
+      color: #ccc;
+      margin-bottom: 8px;
+      line-height: 1.5;
+    }
+
+    .interruption-option {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+
+    .interruption-option input[type="checkbox"],
+    .interruption-option input[type="radio"] {
+      accent-color: var(--accent-g);
+    }
+
+    .interruption-actions {
+      margin-top: 10px;
+      display: flex;
+      gap: 6px;
+    }
+
+    .interruption-actions button {
+      flex: 1;
+      padding: 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+      border: 1px solid;
+    }
+
+    .interruption-actions .btn-yes {
+      background: #1a4a30;
+      border-color: var(--accent-g);
+      color: var(--accent-g);
+    }
+
+    .interruption-actions .btn-yes:hover { background: #2a6a40; }
+
+    .interruption-actions .btn-no {
+      background: #3a1020;
+      border-color: var(--accent-r);
+      color: var(--accent-r);
+    }
+
+    .interruption-actions .btn-no:hover { background: #5a1830; }
+
+    .reduction-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+
+    .reduction-row .piece-label {
+      flex: 1;
+      font-size: 11px;
+    }
+
+    .reduction-row .num-control {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .reduction-row .num-control button {
+      width: 20px;
+      height: 20px;
+      border-radius: 3px;
+      border: 1px solid #0f3460;
+      background: #0f3460;
+      color: #eee;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      padding: 0;
+    }
+
+    .reduction-row .num-control .num-val {
+      width: 24px;
+      text-align: center;
+      font-size: 12px;
+    }
+
+    /* LOG */
+    #logPanel {
+      height: var(--log-h);
+      background: #0f0f1e;
+      border-top: 1px solid var(--border);
+      padding: 6px 12px;
+      overflow-y: auto;
+      flex-shrink: 0;
+      font-size: 11px;
+      color: #aaa;
+    }
+
+    #logPanel .log-entry {
+      margin-bottom: 2px;
+    }
+
+    #logPanel .log-entry:first-child {
+      color: #ddd;
+    }
+
+    /* ── CONNECT MODAL ── */
+    #connectModal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    #connectModal.hidden { display: none; }
+
+    .modal-box {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 28px 32px;
+      min-width: 280px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    }
+
+    .modal-box h1 {
+      font-size: 17px;
+      margin-bottom: 20px;
+      color: #fff;
+      text-align: center;
+    }
+
+    .modal-field {
+      margin-bottom: 12px;
+    }
+
+    .modal-field label {
+      display: block;
+      font-size: 12px;
+      color: #aaa;
+      margin-bottom: 4px;
+    }
+
+    .modal-field input,
+    .modal-field select {
+      width: 100%;
+      padding: 7px 10px;
+      background: #0a0f1e;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+    }
+
+    .modal-field input:focus,
+    .modal-field select:focus {
+      border-color: var(--fr-color);
+    }
+
+    .modal-field select option {
+      background: #0a0f1e;
+    }
+
+    #connectBtn {
+      display: block;
+      width: 100%;
+      margin-top: 18px;
+      padding: 9px;
+      background: var(--fr-color);
+      border: none;
+      border-radius: 4px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    #connectBtn:hover { background: #2a5ba5; }
+
+    #connectError {
+      margin-top: 10px;
+      color: var(--accent-r);
+      font-size: 12px;
+      text-align: center;
+      min-height: 18px;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* Not-your-turn overlay on action area */
+    .not-my-turn-msg {
+      color: #555;
+      font-style: italic;
+      font-size: 12px;
+      padding: 8px 0;
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <div id="timeTrack"></div>
+  <div id="roundInfo">Round 1/16</div>
+  <div id="turnIndicator" class="opponent">相手のターン</div>
+  <div id="commandPoints">
+    <span class="cp-label">司令:</span>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+  <div id="mapContainer">
+    <canvas id="mapCanvas"></canvas>
+  </div>
+
+  <div id="sidebar">
+    <!-- Morale -->
+    <div id="moralePanel" class="sidebar-section">
+      <h3>士気</h3>
+      <div class="morale-row">
+        <span class="morale-label fr">FR</span>
+        <div class="morale-bar-bg">
+          <div id="moraleBarFR" class="morale-bar-fill fr" style="width:0%"></div>
+        </div>
+        <span id="moraleNumFR" class="morale-num">—</span>
+      </div>
+      <div class="morale-row">
+        <span class="morale-label au">AU</span>
+        <div class="morale-bar-bg">
+          <div id="moraleBarAU" class="morale-bar-fill au" style="width:0%"></div>
+        </div>
+        <span id="moraleNumAU" class="morale-num">—</span>
+      </div>
+    </div>
+
+    <!-- Piece Info -->
+    <div id="pieceInfo" class="sidebar-section">
+      <h3>選択中の駒</h3>
+      <div class="no-selection">駒を選択してください</div>
+    </div>
+
+    <!-- Action / Interruption panel -->
+    <div id="actionPanel"></div>
+    <div id="turnEndBtn">
+      <button id="btnTurnEnd" disabled>ターン終了</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOG -->
+<div id="logPanel">
+  <div class="log-entry" style="color:#444">— ゲームログ —</div>
+</div>
+
+<!-- CONNECT MODAL -->
+<div id="connectModal">
+  <div class="modal-box">
+    <h1>Triomphe à Marengo</h1>
+    <div class="modal-field">
+      <label>ゲームID</label>
+      <input id="inputGameId" type="text" placeholder="例: game001" autocomplete="off" />
+    </div>
+    <div class="modal-field">
+      <label>サイド</label>
+      <select id="inputSide">
+        <option value="france">France (フランス)</option>
+        <option value="austria">Austria (オーストリア)</option>
+      </select>
+    </div>
+    <button id="connectBtn">接続</button>
+    <div id="connectError"></div>
+  </div>
+</div>
+
+<script type="module" src="/js/App.js"></script>
+</body>
+</html>
