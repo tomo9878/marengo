@@ -16,7 +16,7 @@ const map = require('./MapGraph');
 // マップ入場の定数
 // ---------------------------------------------------------------------------
 
-const BORMIDA_ENTRY_LOCALE_IDX = 0; // TODO: update after area identification
+const BORMIDA_ENTRY_LOCALE_IDX = 1; // ボルミダ川渡河地点（エリアidx=1、ユーザー確認済み）
 const ARTILLERY_ENTRY_MIN_ROUND = 2; // 7AM = round 2 (per scenarios.json artilleryAvailableFrom)
 const MAX_ENTRIES_PER_TURN = 4;
 

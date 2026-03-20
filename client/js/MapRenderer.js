@@ -74,6 +74,13 @@ export default class MapRenderer {
       };
       img.src = `/assets/images/${name}.png`;
     }
+
+    // Board background image (2700×1799 — same coordinate space as map.json)
+    this._boardImg = new Image();
+    this._boardImg.onload = () => {
+      if (this.onImageLoad) this.onImageLoad();
+    };
+    this._boardImg.src = '/assets/images/Triomphe-a-Marengo.BOARD.BIG.jpg';
   }
 
   /** Return the image key for a piece based on side, type, and current strength. */
@@ -117,14 +124,21 @@ export default class MapRenderer {
 
     if (!this.mapData || !this.mapData.areas) return;
 
+    // 1. Draw board image
+    if (this._boardImg && this._boardImg.complete && this._boardImg.naturalWidth > 0) {
+      const [x0, y0] = this._toScreen(0, 0);
+      const [x1, y1] = this._toScreen(2700, 1799);
+      ctx.drawImage(this._boardImg, x0, y0, x1 - x0, y1 - y0);
+    }
+
     const areas = this.mapData.areas;
 
-    // 1. Draw locale polygons
+    // 2. Draw locale overlays (semi-transparent highlights only)
     for (const area of areas) {
       this._drawLocale(area, legalMoves, attackTargets, selectedPieceId, gameState);
     }
 
-    // 2. Draw objective line
+    // 3. Draw objective line
     this._drawObjectiveLine();
 
     // 3. Draw pieces
@@ -153,27 +167,20 @@ export default class MapRenderer {
     }
     ctx.closePath();
 
-    // Fill
-    const isLegalMove   = legalMoves && legalMoves.includes(area.idx);
+    // Overlay fill: only for legal moves / attack targets (board image is the base)
+    const isLegalMove    = legalMoves && legalMoves.includes(area.idx);
     const isAttackTarget = attackTargets && attackTargets.includes(area.idx);
 
-    let fillColor = area.color || TERRAIN_COLORS[area.terrain] || TERRAIN_COLORS[''];
-
-    ctx.fillStyle = fillColor;
-    ctx.fill();
-
     if (isLegalMove) {
-      ctx.fillStyle = 'rgba(78, 204, 163, 0.25)';
+      ctx.fillStyle = 'rgba(78, 204, 163, 0.30)';
+      ctx.fill();
+    } else if (isAttackTarget) {
+      ctx.fillStyle = 'rgba(233, 69, 96, 0.30)';
       ctx.fill();
     }
 
-    if (isAttackTarget) {
-      ctx.fillStyle = 'rgba(233, 69, 96, 0.25)';
-      ctx.fill();
-    }
-
-    // Stroke
-    ctx.strokeStyle = '#0f3460';
+    // Stroke (subtle border so areas are still clickable/visible)
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
     ctx.lineWidth = 1;
     ctx.stroke();
 
@@ -192,16 +199,29 @@ export default class MapRenderer {
 
     ctx.restore();
 
-    // Area label (small)
-    if (this._zoom >= 0.6 && area.historicalName) {
+    // Area label
+    if (this._zoom >= 0.4) {
       const [cx, cy] = this._centroids[area.idx] || this._calcCentroid(poly);
       const [scx, scy] = this._toScreen(cx, cy);
       ctx.save();
-      ctx.font = `${Math.max(8, 9 * this._zoom)}px sans-serif`;
-      ctx.fillStyle = 'rgba(220,220,220,0.7)';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(area.historicalName, scx, scy);
+
+      if (this.showAreaIdx) {
+        // Debug: show idx number with dark background for readability
+        const label = String(area.idx);
+        ctx.font = `bold ${Math.max(9, 11 * this._zoom)}px sans-serif`;
+        ctx.fillStyle = 'rgba(0,0,0,0.65)';
+        const tw = ctx.measureText(label).width;
+        ctx.fillRect(scx - tw / 2 - 3, scy - 8 * this._zoom, tw + 6, 14 * this._zoom);
+        ctx.fillStyle = '#ffe44d';
+        ctx.fillText(label, scx, scy);
+      } else if (area.historicalName && this._zoom >= 0.6) {
+        ctx.font = `${Math.max(8, 9 * this._zoom)}px sans-serif`;
+        ctx.fillStyle = 'rgba(220,220,220,0.7)';
+        ctx.fillText(area.historicalName, scx, scy);
+      }
+
       ctx.restore();
     }
   }

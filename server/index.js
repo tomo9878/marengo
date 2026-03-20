@@ -17,6 +17,7 @@
  * Also serves static client files.
  */
 
+const http = require('http');
 const { WebSocketServer } = require('ws');
 const { URL } = require('url');
 const path = require('path');
@@ -82,10 +83,8 @@ const rooms = new Map();
 // Reconnection timeout: clean up empty rooms after 30 minutes
 const RECONNECT_TIMEOUT_MS = 30 * 60 * 1000;
 
-const wss = new WebSocketServer({ port: PORT });
-
-// Handle plain HTTP requests
-wss.on('request', (req, res) => {
+// HTTP request handler (static files + REST endpoints)
+const httpServer = http.createServer((req, res) => {
   const reqUrl = req.url.split('?')[0];  // strip query string
 
   // GET /saves
@@ -182,6 +181,8 @@ wss.on('request', (req, res) => {
   res.writeHead(404);
   res.end('Not found');
 });
+
+const wss = new WebSocketServer({ server: httpServer });
 
 wss.on('connection', (ws, req) => {
   // Parse query params from request URL
@@ -309,12 +310,12 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-wss.on('listening', () => {
-  console.log(`Triomphe à Marengo WebSocket server listening on port ${PORT}`);
+httpServer.listen(PORT, () => {
+  console.log(`Triomphe à Marengo server listening on http://localhost:${PORT}`);
 });
 
-wss.on('error', (err) => {
-  console.error('WebSocket server error:', err);
+httpServer.on('error', (err) => {
+  console.error('Server error:', err);
 });
 
 module.exports = { wss, rooms };
