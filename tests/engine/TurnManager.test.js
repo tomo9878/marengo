@@ -724,18 +724,90 @@ describe('checkVictory', () => {
 // ---------------------------------------------------------------------------
 
 describe('executeAction: reorganize', () => {
-  test('clears disordered flag on French pieces', () => {
+  test('clears disordered flag on selected French pieces (all-or-none)', () => {
+    const state = createMinimalState({
+      activePlayer: SIDES.FRANCE,
+      controlToken: { holder: SIDES.FRANCE, reason: 'active_player' },
+    });
+    // Section 14: 全員まとめてか0か — 1駒だけ混乱、maxCount=1なので再編成可能
+    state.pieces['FR-INF-1'] = makePiece('FR-INF-1', { localeId: 2, disordered: true });
+    state.commandPoints = 3;
+
+    // 全混乱駒を渡す（ここでは1駒）
+    const action = { type: 'reorganize', pieceIds: ['FR-INF-1'], localeId: 2 };
+    const { newState } = turnManager.executeAction(action, state);
+
+    expect(newState.pieces['FR-INF-1'].disordered).toBe(false);
+    // CP が1消費されている
+    expect(newState.commandPoints).toBe(2);
+  });
+
+  test('clears all disordered pieces when organized count >= 3 (maxCount=2)', () => {
+    const state = createMinimalState({
+      activePlayer: SIDES.FRANCE,
+      controlToken: { holder: SIDES.FRANCE, reason: 'active_player' },
+    });
+    // 整列駒3体でmaxCount=2、混乱駒2体なので再編成可能
+    state.pieces['FR-INF-1'] = makePiece('FR-INF-1', { localeId: 2, disordered: true });
+    state.pieces['FR-INF-2'] = makePiece('FR-INF-2', { localeId: 2, disordered: true });
+    state.pieces['FR-INF-3'] = makePiece('FR-INF-3', { localeId: 2, disordered: false });
+    state.pieces['FR-INF-4'] = makePiece('FR-INF-4', { localeId: 2, disordered: false });
+    state.pieces['FR-INF-5'] = makePiece('FR-INF-5', { localeId: 2, disordered: false });
+    state.commandPoints = 3;
+
+    const action = { type: 'reorganize', pieceIds: ['FR-INF-1', 'FR-INF-2'], localeId: 2 };
+    const { newState } = turnManager.executeAction(action, state);
+
+    expect(newState.pieces['FR-INF-1'].disordered).toBe(false);
+    expect(newState.pieces['FR-INF-2'].disordered).toBe(false);
+    // CP = 駒の数（2）消費: 3 - 2 = 1
+    expect(newState.commandPoints).toBe(1);
+  });
+
+  test('no-op when pieceIds is empty', () => {
+    const state = createMinimalState({
+      activePlayer: SIDES.FRANCE,
+      controlToken: { holder: SIDES.FRANCE, reason: 'active_player' },
+    });
+    state.pieces['FR-INF-1'] = makePiece('FR-INF-1', { localeId: 2, disordered: true });
+    state.commandPoints = 3;
+
+    const action = { type: 'reorganize', pieceIds: [], localeId: 2 };
+    const { newState } = turnManager.executeAction(action, state);
+
+    expect(newState.pieces['FR-INF-1'].disordered).toBe(true);
+    expect(newState.commandPoints).toBe(3);
+  });
+
+  test('reorganizes all disordered pieces (2 units, costs 2 CP)', () => {
     const state = createMinimalState({
       activePlayer: SIDES.FRANCE,
       controlToken: { holder: SIDES.FRANCE, reason: 'active_player' },
     });
     state.pieces['FR-INF-1'] = makePiece('FR-INF-1', { localeId: 2, disordered: true });
     state.pieces['FR-INF-2'] = makePiece('FR-INF-2', { localeId: 2, disordered: true });
+    state.commandPoints = 3;
 
-    const action = { type: 'reorganize', localeId: 2 };
+    // 2駒まとめて再編成（全員一括が原則）
+    const action = { type: 'reorganize', pieceIds: ['FR-INF-1', 'FR-INF-2'], localeId: 2 };
     const { newState } = turnManager.executeAction(action, state);
-
     expect(newState.pieces['FR-INF-1'].disordered).toBe(false);
     expect(newState.pieces['FR-INF-2'].disordered).toBe(false);
+    // CP = 2消費: 3 - 2 = 1
+    expect(newState.commandPoints).toBe(1);
+  });
+
+  test('throws on partial reorganize (not all disordered pieces)', () => {
+    const state = createMinimalState({
+      activePlayer: SIDES.FRANCE,
+      controlToken: { holder: SIDES.FRANCE, reason: 'active_player' },
+    });
+    state.pieces['FR-INF-1'] = makePiece('FR-INF-1', { localeId: 2, disordered: true });
+    state.pieces['FR-INF-2'] = makePiece('FR-INF-2', { localeId: 2, disordered: true });
+    state.commandPoints = 3;
+
+    // 2駒のうち1駒だけ指定 → 部分再編成は不可
+    const action = { type: 'reorganize', pieceIds: ['FR-INF-1'], localeId: 2 };
+    expect(() => turnManager.executeAction(action, state)).toThrow();
   });
 });

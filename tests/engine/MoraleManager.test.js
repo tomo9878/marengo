@@ -8,12 +8,11 @@ const { createMinimalState, makePiece, SIDES } = require('../helpers/stateFactor
 // ---------------------------------------------------------------------------
 
 describe('periodicMoraleUpdate', () => {
-  test('adds morale gain from timeTrack (round 1 = 0 gain)', () => {
+  test('adds morale gain from timeTrack (round 1: france+1, austria+2)', () => {
     const state = createMinimalState({ round: 1 });
     const next = moraleManager.periodicMoraleUpdate(1, state);
-    // Round 1 has 0 moraleGain for both sides
-    expect(next.morale.france.uncommitted).toBe(state.morale.france.uncommitted);
-    expect(next.morale.austria.uncommitted).toBe(state.morale.austria.uncommitted);
+    expect(next.morale.france.uncommitted).toBe(state.morale.france.uncommitted + 1);
+    expect(next.morale.austria.uncommitted).toBe(state.morale.austria.uncommitted + 2);
   });
 
   test('does not throw for unknown round', () => {

@@ -53,9 +53,9 @@
       "edges": [
         {
           "id": "e0-0",
-          "shared_with": null,
-          "adj_area_idx": null,
-          "adj_area_name": null,
+          "shared_with": "e3-4",
+          "adj_area_idx": 3,
+          "adj_area_name": "エリア_4",
           "road_type": "thick",
           "mp_cost": 1,
           "width": null,
@@ -368,9 +368,9 @@
         },
         {
           "id": "e3-4",
-          "shared_with": null,
-          "adj_area_idx": null,
-          "adj_area_name": null,
+          "shared_with": "e0-0",
+          "adj_area_idx": 0,
+          "adj_area_name": "エリア_1",
           "road_type": "thick",
           "mp_cost": 1,
           "width": null,
@@ -427,7 +427,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e4-2",
@@ -571,13 +572,14 @@
       "edges": [
         {
           "id": "e6-0",
-          "shared_with": null,
-          "adj_area_idx": null,
-          "adj_area_name": null,
+          "shared_with": "e7-0",
+          "adj_area_idx": 7,
+          "adj_area_name": "エリア_8",
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e6-1",
@@ -587,7 +589,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e6-2",
@@ -601,13 +604,14 @@
         },
         {
           "id": "e6-3",
-          "shared_with": null,
-          "adj_area_idx": null,
-          "adj_area_name": null,
+          "shared_with": "e7-1",
+          "adj_area_idx": 7,
+          "adj_area_name": "エリア_8",
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -652,23 +656,25 @@
       "edges": [
         {
           "id": "e7-0",
-          "shared_with": null,
-          "adj_area_idx": null,
-          "adj_area_name": null,
-          "road_type": "none",
-          "mp_cost": 3,
+          "shared_with": "e6-0",
+          "adj_area_idx": 6,
+          "adj_area_name": "エリア_7",
+          "road_type": "thin",
+          "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e7-1",
-          "shared_with": null,
-          "adj_area_idx": null,
-          "adj_area_name": null,
-          "road_type": "none",
-          "mp_cost": 3,
+          "shared_with": "e6-3",
+          "adj_area_idx": 6,
+          "adj_area_name": "エリア_7",
+          "road_type": "thin",
+          "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e7-2",
@@ -678,7 +684,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e7-3",
@@ -688,7 +695,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e7-4",
@@ -698,7 +706,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e7-5",
@@ -708,7 +717,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -759,7 +769,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e8-1",
@@ -856,7 +867,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e9-1",
@@ -997,7 +1009,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -1058,7 +1071,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e11-2",
@@ -1068,7 +1082,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e11-3",
@@ -1088,7 +1103,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e11-5",
@@ -1585,7 +1601,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e18-3",
@@ -1595,7 +1612,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -1642,7 +1660,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e19-1",
@@ -1662,7 +1681,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e19-3",
@@ -1763,7 +1783,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e20-4",
@@ -1773,7 +1794,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e20-5",
@@ -1783,7 +1805,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -1836,7 +1859,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e21-2",
@@ -1846,7 +1870,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e21-3",
@@ -1856,7 +1881,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -2302,7 +2328,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e27-4",
@@ -2361,7 +2388,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e28-1",
@@ -2420,7 +2448,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e29-1",
@@ -2531,7 +2560,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e30-5",
@@ -2541,7 +2571,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -2612,7 +2643,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e31-3",
@@ -2622,7 +2654,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e31-4",
@@ -2681,7 +2714,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e32-1",
@@ -2691,7 +2725,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e32-2",
@@ -2701,7 +2736,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -2754,7 +2790,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e33-2",
@@ -2841,7 +2878,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e34-3",
@@ -2851,7 +2889,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e34-4",
@@ -2952,7 +2991,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e35-5",
@@ -3096,7 +3136,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e37-1",
@@ -3106,7 +3147,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e37-2",
@@ -3126,7 +3168,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e37-4",
@@ -3179,7 +3222,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e38-1",
@@ -3189,7 +3233,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e38-2",
@@ -3199,7 +3244,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e38-3",
@@ -3209,7 +3255,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -3282,7 +3329,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -3329,7 +3377,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e40-1",
@@ -3349,7 +3398,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e40-3",
@@ -3491,7 +3541,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e42-3",
@@ -3501,7 +3552,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -3544,7 +3596,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e43-1",
@@ -3564,7 +3617,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e43-3",
@@ -3574,7 +3628,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -3627,7 +3682,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e44-2",
@@ -3710,7 +3766,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e45-3",
@@ -3763,7 +3820,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e46-1",
@@ -3783,7 +3841,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e46-3",
@@ -3832,7 +3891,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e47-1",
@@ -3842,7 +3902,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e47-2",
@@ -3852,7 +3913,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -3901,7 +3963,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e48-2",
@@ -3911,7 +3974,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -3968,7 +4032,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e49-2",
@@ -4045,7 +4110,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e50-1",
@@ -4132,7 +4198,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e51-1",
@@ -4142,7 +4209,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e51-2",
@@ -4152,7 +4220,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e51-3",
@@ -4172,7 +4241,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -4211,7 +4281,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e52-1",
@@ -4221,7 +4292,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e52-2",
@@ -4357,7 +4429,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e54-1",
@@ -4367,7 +4440,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e54-2",
@@ -4377,7 +4451,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -4420,7 +4495,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e55-1",
@@ -4430,7 +4506,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e55-2",
@@ -4440,7 +4517,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e55-3",
@@ -4489,7 +4567,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e56-1",
@@ -4499,7 +4578,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e56-2",
@@ -4509,7 +4589,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -4580,7 +4661,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e57-3",
@@ -4590,7 +4672,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e57-4",
@@ -4610,7 +4693,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -4661,7 +4745,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e58-1",
@@ -4701,7 +4786,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e58-5",
@@ -4750,7 +4836,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e59-1",
@@ -4760,7 +4847,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e59-2",
@@ -4813,7 +4901,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e60-1",
@@ -4823,7 +4912,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e60-2",
@@ -4833,7 +4923,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e60-3",
@@ -4843,7 +4934,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -4916,7 +5008,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -4959,7 +5052,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e62-1",
@@ -4979,7 +5073,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e62-3",
@@ -5032,7 +5127,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e63-1",
@@ -5052,7 +5148,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e63-3",
@@ -5105,7 +5202,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e64-1",
@@ -5208,7 +5306,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -5261,7 +5360,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e66-2",
@@ -5271,7 +5371,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e66-3",
@@ -5281,7 +5382,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -5324,7 +5426,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e67-1",
@@ -5334,7 +5437,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e67-2",
@@ -5344,7 +5448,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e67-3",
@@ -5354,7 +5459,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -5421,7 +5527,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e68-3",
@@ -5488,7 +5595,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e69-1",
@@ -5508,7 +5616,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e69-3",
@@ -5571,7 +5680,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e70-1",
@@ -5581,7 +5691,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e70-2",
@@ -5668,7 +5779,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e71-3",
@@ -5727,7 +5839,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e72-1",
@@ -5747,7 +5860,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -5964,7 +6078,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e75-1",
@@ -5974,7 +6089,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e75-2",
@@ -6138,7 +6254,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e77-1",
@@ -6148,7 +6265,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e77-2",
@@ -6168,7 +6286,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -6294,7 +6413,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e79-2",
@@ -6314,7 +6434,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -6462,7 +6583,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e81-1",
@@ -6472,7 +6594,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e81-2",
@@ -6482,7 +6605,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e81-3",
@@ -6492,7 +6616,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e81-4",
@@ -6502,7 +6627,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -6549,7 +6675,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e82-1",
@@ -6676,7 +6803,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },
@@ -6781,7 +6909,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e84-6",
@@ -6844,7 +6973,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e85-2",
@@ -6917,7 +7047,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         },
         {
           "id": "e86-2",
@@ -6937,7 +7068,8 @@
           "road_type": "thin",
           "mp_cost": 2,
           "width": null,
-          "symbols": []
+          "symbols": [],
+          "road_access": null
         }
       ]
     },

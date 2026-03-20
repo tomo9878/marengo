@@ -122,6 +122,12 @@ function executeAction(action, state) {
     case 'ENTER_MAP':
       return executeEnterMap(action, state);
 
+    case 'end_turn': {
+      const afterPhase = endActionPhase(state);
+      const newState = startPlayerTurn(afterPhase);
+      return { newState, interruption: null };
+    }
+
     default:
       throw new Error(`Unknown action type: ${action.type}`);
   }
@@ -135,13 +141,41 @@ function executeMarch(action, state) {
   const piece = next.pieces[action.pieceId];
   if (!piece) throw new Error(`Piece not found: ${action.pieceId}`);
 
+  const destLocaleId = action.to.localeId;
+
   // 移動実行
   next.pieces[action.pieceId] = {
     ...piece,
-    localeId: action.to.localeId,
+    localeId: destLocaleId,
     position: action.to.position,
     actedThisTurn: true,
   };
+
+  // Section 14: 混乱ルール — 整列駒が混乱駒のいるロケールへ入ると全員混乱
+  if (!piece.disordered) {
+    const disorderedInDest = Object.values(next.pieces).some(
+      p => p.id !== action.pieceId && p.localeId === destLocaleId && p.side === piece.side && p.disordered
+    );
+    if (disorderedInDest) {
+      // 同サイドの全駒（移動した駒も含む）を混乱状態にする
+      for (const pid of Object.keys(next.pieces)) {
+        const p = next.pieces[pid];
+        if (p.localeId === destLocaleId && p.side === piece.side) {
+          next.pieces[pid] = { ...p, disordered: true };
+        }
+      }
+    }
+  }
+
+  // 道路行軍: 横断交通制限を記録
+  if (action.type === 'road_march' && action.crossingPath) {
+    for (const { canonicalEdgeId, direction, step } of action.crossingPath) {
+      if (!next.crossingTraffic[canonicalEdgeId]) {
+        next.crossingTraffic[canonicalEdgeId] = [];
+      }
+      next.crossingTraffic[canonicalEdgeId].push({ pieceId: action.pieceId, steps: step, direction });
+    }
+  }
 
   // 司令ポイント消費
   next.commandPoints -= action.commandCost ?? 0;
@@ -305,13 +339,37 @@ function executeBombardmentComplete(action, state) {
  */
 function executeReorganize(action, state) {
   let next = cloneState(state);
-  const { localeId } = action;
+  const { pieceIds, localeId } = action;
 
-  // そのロケールのフランス混乱駒を解除
-  for (const piece of Object.values(next.pieces)) {
-    if (piece.localeId === localeId && piece.side === SIDES.FRANCE && piece.disordered) {
-      next.pieces[piece.id] = { ...piece, disordered: false };
-    }
+  if (!pieceIds || !Array.isArray(pieceIds) || pieceIds.length === 0) {
+    return { newState: next, interruption: null };
+  }
+
+  // Section 14: 全員まとめてか0か
+  // ロケールの全混乱駒を取得
+  const allDisordered = Object.values(next.pieces).filter(
+    p => p.localeId === localeId && p.side === SIDES.FRANCE && p.disordered
+  ).map(p => p.id);
+
+  // 全混乱駒を渡していること（部分再編成不可）
+  if (pieceIds.length !== allDisordered.length) {
+    throw new Error('ロケール内の全混乱駒をまとめて再編成する必要があります');
+  }
+
+  // 各駒のバリデーション
+  for (const pid of pieceIds) {
+    const piece = next.pieces[pid];
+    if (!piece) throw new Error(`駒が見つかりません: ${pid}`);
+    if (piece.side !== SIDES.FRANCE) throw new Error(`フランス軍の駒ではありません: ${pid}`);
+    if (!piece.disordered) throw new Error(`混乱していません: ${pid}`);
+    if (piece.localeId !== localeId) throw new Error(`指定ロケールにいません: ${pid}`);
+  }
+
+  // CP消費 = 再編成する駒の数（再編成した駒はactedPieceIdsに追加しない → 同ターン行動可能）
+  next.commandPoints -= pieceIds.length;
+
+  for (const pid of pieceIds) {
+    next.pieces[pid] = { ...next.pieces[pid], disordered: false };
   }
 
   return { newState: next, interruption: null };

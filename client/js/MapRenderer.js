@@ -150,6 +150,11 @@ export default class MapRenderer {
     if (gameState && gameState.moraleTokens) {
       this._drawMoraleTokens(gameState.moraleTokens);
     }
+
+    // 5. Draw crossing traffic indicators (step slots 1/2/3 on road edges)
+    if (gameState) {
+      this._drawCrossingTraffic(gameState);
+    }
   }
 
   _drawLocale(area, legalMoves, attackTargets, selectedPieceId, gameState) {
@@ -247,7 +252,16 @@ export default class MapRenderer {
     this.ctx.restore();
   }
 
-  _drawPieces(gameState, selectedPieceId, myState) {
+  /**
+   * 駒の描画位置を計算する（横並びレイアウト）。
+   * @returns {Object} pieceId → { x, y, pw, ph }
+   */
+  _computePiecePositions(gameState) {
+    const GAP = 2 * this._zoom;
+    const pw = PIECE_W * this._zoom;
+    const ph = PIECE_H * this._zoom;
+    const positions = {};
+
     // Group pieces by (localeId, position)
     const groups = {};
     for (const [pid, piece] of Object.entries(gameState.pieces)) {
@@ -264,15 +278,32 @@ export default class MapRenderer {
       if (!basePos) continue;
 
       const [bx, by] = basePos;
-      const pw = PIECE_W * this._zoom;
-      const ph = PIECE_H * this._zoom;
-      const offset = 3 * this._zoom;
+      const n = piecePairs.length;
+      const totalW = n * pw + (n - 1) * GAP;
+      const startX = bx - totalW / 2 + pw / 2;
 
-      piecePairs.forEach(([pid, piece], i) => {
-        const x = bx + i * offset;
-        const y = by + i * offset;
-        this._drawPieceToken(pid, piece, x, y, pw, ph, pid === selectedPieceId);
+      piecePairs.forEach(([pid], i) => {
+        positions[pid] = { x: startX + i * (pw + GAP), y: by, pw, ph };
       });
+    }
+
+    return positions;
+  }
+
+  _drawPieces(gameState, selectedPieceId, myState) {
+    const positions = this._computePiecePositions(gameState);
+    for (const [pid, piece] of Object.entries(gameState.pieces)) {
+      const pos = positions[pid];
+      if (!pos) continue;
+
+      // アプローチ駒は矢印を先に描画（駒の下）
+      const approachMatch = piece.position && piece.position.match(/^approach_(\d+)$/);
+      if (approachMatch && piece.localeId != null) {
+        const edgeIdx = Number(approachMatch[1]);
+        this._drawApproachArrow(piece.localeId, edgeIdx, pos.x, pos.y, pos.pw);
+      }
+
+      this._drawPieceToken(pid, piece, pos.x, pos.y, pos.pw, pos.ph, pid === selectedPieceId);
     }
   }
 
@@ -333,6 +364,22 @@ export default class MapRenderer {
     ctx.roundRect ? ctx.roundRect(rx, ry, pw, ph, radius) : ctx.rect(rx, ry, pw, ph);
     ctx.stroke();
 
+    // 混乱インジケーター（オレンジ×印）
+    if (piece.disordered) {
+      ctx.save();
+      ctx.strokeStyle = '#ff8c00';
+      ctx.lineWidth = Math.max(1.5, pw * 0.07);
+      ctx.globalAlpha = 0.9;
+      const pad = pw * 0.12;
+      ctx.beginPath();
+      ctx.moveTo(rx + pad,      ry + pad);
+      ctx.lineTo(rx + pw - pad, ry + ph - pad);
+      ctx.moveTo(rx + pw - pad, ry + pad);
+      ctx.lineTo(rx + pad,      ry + ph - pad);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     ctx.restore();
   }
 
@@ -353,6 +400,98 @@ export default class MapRenderer {
       this.ctx.stroke();
       this.ctx.restore();
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 横断トラフィック表示
+  // ---------------------------------------------------------------------------
+
+  /**
+   * 全道路エッジの境界線中点に、ステップスロット(1/2/3)のバッジを描画する。
+   * 使用済み→赤、空き→緑。トラフィックがないエッジは薄く表示。
+   */
+  _drawCrossingTraffic(gameState) {
+    if (!this.mapData || !this.mapData.areas) return;
+    if (this._zoom < 0.35) return; // 縮小時は非表示
+
+    const traffic = gameState.crossingTraffic || {};
+    const drawn = new Set(); // 同じ横断を2重描画しない
+
+    for (const area of this.mapData.areas) {
+      const poly = area.polygon;
+      if (!poly || poly.length < 2) continue;
+
+      for (let ei = 0; ei < area.edges.length; ei++) {
+        const edge = area.edges[ei];
+        if (!edge.road_type || edge.road_type === 'none') continue;
+        if (edge.adj_area_idx === null || edge.adj_area_idx === undefined) continue;
+        if (!edge.id) continue;
+
+        // canonical ID（辞書順で小さい方）で重複排除
+        const myId    = edge.id;
+        const theirId = edge.shared_with;
+        const canonId = (!theirId || myId < theirId) ? myId : theirId;
+        if (drawn.has(canonId)) continue;
+        drawn.add(canonId);
+
+        // エッジ中点を計算
+        const p0 = poly[ei];
+        const p1 = poly[(ei + 1) % poly.length];
+        if (!p0 || !p1) continue;
+        const mx = (p0[0] + p1[0]) / 2;
+        const my = (p0[1] + p1[1]) / 2;
+        const [sx, sy] = this._toScreen(mx, my);
+
+        const usedSteps  = new Set((traffic[canonId] || []).map(t => t.steps));
+        const hasTraffic = usedSteps.size > 0;
+
+        this._drawStepBadges(sx, sy, usedSteps, edge.road_type, hasTraffic);
+      }
+    }
+  }
+
+  /**
+   * 1・2・3 のステップバッジを1組描画する。
+   * @param {number} sx - スクリーンX
+   * @param {number} sy - スクリーンY
+   * @param {Set<number>} usedSteps - 使用済みステップ番号
+   * @param {'thick'|'thin'} roadType
+   * @param {boolean} hasTraffic - いずれかのスロットが使用中か
+   */
+  _drawStepBadges(sx, sy, usedSteps, roadType, hasTraffic) {
+    const ctx  = this.ctx;
+    const r    = Math.max(5, 7 * this._zoom);   // バッジ半径
+    const gap  = Math.max(12, 16 * this._zoom); // バッジ間隔
+    const alpha = hasTraffic ? 0.95 : 0.40;     // トラフィックなしは薄く
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = `bold ${Math.max(6, 8 * this._zoom)}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    for (let step = 1; step <= 3; step++) {
+      const bx = sx + (step - 2) * gap; // step2 が中心
+      const occupied = usedSteps.has(step);
+
+      // 背景丸
+      ctx.beginPath();
+      ctx.arc(bx, sy, r, 0, Math.PI * 2);
+      ctx.fillStyle = occupied ? '#c0392b' : '#27ae60';
+      ctx.fill();
+
+      // 枠線（太道路=金、細道=白）
+      ctx.strokeStyle = roadType === 'thick' ? '#f1c40f' : 'rgba(255,255,255,0.7)';
+      ctx.lineWidth   = occupied ? 1.5 : 0.8;
+      ctx.stroke();
+
+      // ステップ番号
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(String(step), bx, sy);
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 
   // ---------------------------------------------------------------------------
@@ -408,18 +547,16 @@ export default class MapRenderer {
    */
   getPieceAt(sx, sy, gameState) {
     if (!gameState || !gameState.pieces) return null;
-    const pw = PIECE_W * this._zoom;
-    const ph = PIECE_H * this._zoom;
+    const positions = this._computePiecePositions(gameState);
 
-    // Iterate in reverse insertion order (top of stack first)
-    const entries = Object.entries(gameState.pieces).reverse();
-    for (const [pid, piece] of entries) {
-      if (piece.localeId == null) continue;
-      const pos = this._getPieceScreenPos(piece.localeId, piece.position || 'reserve');
+    // 後から描かれた駒を優先（逆順）
+    const pids = Object.keys(gameState.pieces).reverse();
+    for (const pid of pids) {
+      const pos = positions[pid];
       if (!pos) continue;
-      const [px, py] = pos;
-      if (sx >= px - pw/2 && sx <= px + pw/2 &&
-          sy >= py - ph/2 && sy <= py + ph/2) {
+      const { x, y, pw, ph } = pos;
+      if (sx >= x - pw / 2 && sx <= x + pw / 2 &&
+          sy >= y - ph / 2 && sy <= y + ph / 2) {
         return pid;
       }
     }
@@ -468,7 +605,7 @@ export default class MapRenderer {
       return this._toScreen(c[0], c[1]);
     }
 
-    // approach_N: midpoint of edge N, offset slightly toward center
+    // approach_N: 重心からエッジ中点の75%地点に配置（ズーム非依存）
     const match = position.match(/^approach_(\d+)$/);
     if (!match) return null;
     const edgeIdx = Number(match[1]);
@@ -481,15 +618,66 @@ export default class MapRenderer {
     const midX = (p0[0] + p1[0]) / 2;
     const midY = (p0[1] + p1[1]) / 2;
 
-    // Offset toward centroid by 20px in map coords
+    // 重心からエッジ中点に向かって 75% の地点（明確にエッジ側）
     const c = this._centroids[localeIdx] || this._calcCentroid(poly);
-    const dx = c[0] - midX;
-    const dy = c[1] - midY;
-    const len = Math.sqrt(dx*dx + dy*dy) || 1;
-    const ox = midX + (dx / len) * 20;
-    const oy = midY + (dy / len) * 20;
+    const t = 0.75;
+    const ox = c[0] + t * (midX - c[0]);
+    const oy = c[1] + t * (midY - c[1]);
 
     return this._toScreen(ox, oy);
+  }
+
+  /**
+   * アプローチ駒の方向矢印を描画する（駒からエッジ方向へ）。
+   */
+  _drawApproachArrow(localeIdx, edgeIdx, sx, sy, pw) {
+    const area = this.mapData && this.mapData.areas
+      ? this.mapData.areas.find(a => a.idx === localeIdx)
+      : null;
+    if (!area || !area.polygon) return;
+
+    const poly = area.polygon;
+    if (edgeIdx >= poly.length) return;
+
+    const p0 = poly[edgeIdx];
+    const p1 = poly[(edgeIdx + 1) % poly.length];
+    const midX = (p0[0] + p1[0]) / 2;
+    const midY = (p0[1] + p1[1]) / 2;
+    const c = this._centroids[localeIdx] || this._calcCentroid(poly);
+
+    // 重心→エッジ方向の単位ベクトル
+    const dx = midX - c[0];
+    const dy = midY - c[1];
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const nx = dx / len;
+    const ny = dy / len;
+
+    const arrowLen = (pw / 2) * 1.5;
+    const ctx = this.ctx;
+    const ax = sx + nx * (pw / 2 + 1);
+    const ay = sy + ny * (pw / 2 + 1);
+    const ex = ax + nx * arrowLen;
+    const ey = ay + ny * arrowLen;
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 210, 40, 0.9)';
+    ctx.lineWidth = Math.max(1.5, 2 * this._zoom);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+
+    // 矢印先端
+    const hw = Math.max(3, 4 * this._zoom);
+    ctx.fillStyle = 'rgba(255, 210, 40, 0.9)';
+    ctx.beginPath();
+    ctx.moveTo(ex + nx * hw, ey + ny * hw);
+    ctx.lineTo(ex - nx * hw - ny * hw / 1.5, ey - ny * hw + nx * hw / 1.5);
+    ctx.lineTo(ex - nx * hw + ny * hw / 1.5, ey - ny * hw - nx * hw / 1.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 
   /**

@@ -26,6 +26,7 @@ const GameRoom = require('./GameRoom');
 const GameController = require('./GameController');
 const SaveManager = require('./SaveManager');
 const { createInitialState, initializePieces } = require('./engine/GameState');
+const { startPlayerTurn } = require('./engine/TurnManager');
 const { sanitize } = require('./StateSanitizer');
 
 const PORT = process.env.PORT || 3000;
@@ -230,6 +231,7 @@ wss.on('connection', (ws, req) => {
       // Create fresh game state
       let state = createInitialState();
       state = initializePieces(state);
+      state = startPlayerTurn(state); // 定期士気更新・アプローチクリーンアップ
       room.setState(state);
     }
 

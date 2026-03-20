@@ -29,6 +29,7 @@ let mapData = null;
 let selectedPieceId = null;
 let legalMoves = [];
 let attackTargets = [];
+let serverLegalActions = []; // latest legalActions from server
 
 // ---------------------------------------------------------------------------
 // DOM refs
@@ -85,6 +86,12 @@ async function init() {
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
     handleCanvasClick(sx, sy);
+  });
+
+  // 右クリックで選択解除
+  canvas.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    clearSelection();
   });
 
   // Debug: D key toggles area index display
@@ -246,6 +253,43 @@ function showInterruption(interruptionType, options, waitingFor) {
 
 function handleAction(action) {
   if (!connection) return;
+
+  // 再編成: ダイアログを表示して駒選択
+  if (action.type === 'reorganize') {
+    if (!selectedPieceId || !gameState) return;
+    const piece = gameState.pieces[selectedPieceId];
+    if (!piece) return;
+
+    // serverLegalActions から該当ロケールの再編成アクションを検索
+    const reorgAction = serverLegalActions.find(
+      a => a.type === 'reorganize' && a.localeId === piece.localeId
+    );
+    if (!reorgAction) {
+      infoPanel.addLog('このロケールに再編成可能な駒がありません');
+      return;
+    }
+
+    actionPanel.showReorganizeDialog(
+      reorgAction,
+      gameState,
+      mapData,
+      (pieceIds) => {
+        connection.sendAction({ type: 'reorganize', pieceIds, localeId: reorgAction.localeId });
+        clearSelection(); // 再編成後はニュートラルに戻す（誤移動防止）
+      },
+      () => {
+        refreshActionPanel(); // キャンセル → 元に戻す
+      }
+    );
+    return;
+  }
+
+  // 行軍アクション: 目的地クリックが必要
+  if (action._mapSelect) {
+    infoPanel.addLog('移動先をマップ上でクリックしてください');
+    return;
+  }
+
   // Enrich action with selected piece
   if (selectedPieceId && !action.pieceId) {
     action.pieceId = selectedPieceId;
@@ -264,9 +308,18 @@ function refreshActionPanel() {
                    gameState.controlToken.holder === myState.side &&
                    !gameState.pendingInterruption;
 
-  // Determine legal actions for selected piece
-  // (Server enforces legality; client shows what's plausible based on piece state)
-  const legalActions = computeLegalActionsForPiece(selectedPieceId, gameState);
+  // Use server-authoritative legal actions for selected piece when available
+  const legalActions = selectedPieceId && serverLegalActions.length
+    ? serverLegalActions.filter(a => {
+        if (a.pieceId === selectedPieceId) return true;
+        // 再編成アクションは pieceId がなく localeId で判定
+        if (a.type === 'reorganize') {
+          const piece = gameState.pieces[selectedPieceId];
+          return piece && a.localeId === piece.localeId;
+        }
+        return false;
+      })
+    : computeLegalActionsForPiece(selectedPieceId, gameState);
 
   if (!actionPanel._interruptionActive) {
     actionPanel.showActions(legalActions, gameState.commandPoints, isMyTurn, myState.side);
@@ -292,15 +345,15 @@ function computeLegalActionsForPiece(pieceId, state) {
   const actions = [];
 
   if (piece.position === 'reserve' || piece.position === null) {
-    actions.push({ type: 'rough_march' });
+    actions.push({ type: 'cross_country_march' });
     actions.push({ type: 'road_march' });
   } else {
-    actions.push({ type: 'rough_march' });
+    actions.push({ type: 'cross_country_march' });
     actions.push({ type: 'road_march' });
     actions.push({ type: 'raid' });
     actions.push({ type: 'assault' });
     if (piece.type === 'artillery') {
-      actions.push({ type: 'bombardment' });
+      actions.push({ type: 'bombardment_declare' });
     }
     if (piece.disordered) {
       actions.push({ type: 'reorganize' });
@@ -331,22 +384,99 @@ function handleCanvasClick(sx, sy) {
   }
 }
 
-function selectPiece(pid) {
-  selectedPieceId = pid;
+function clearSelection() {
+  selectedPieceId = null;
   legalMoves = [];
   attackTargets = [];
   refreshActionPanel();
   scheduleRender();
 }
 
-function handleLocaleClick(localeIdx) {
-  // If we have a selected piece and this locale is a legal move destination,
-  // trigger move action
-  if (selectedPieceId && legalMoves.includes(localeIdx)) {
-    handleAction({ type: 'rough_march', targetLocaleId: localeIdx });
-    legalMoves = [];
-    attackTargets = [];
+function selectPiece(pid) {
+  selectedPieceId = pid;
+  legalMoves = [];
+  attackTargets = [];
+  updateLegalHighlights();
+  refreshActionPanel();
+  scheduleRender();
+}
+
+/**
+ * Populate legalMoves / attackTargets from serverLegalActions for the selected piece.
+ */
+function updateLegalHighlights() {
+  legalMoves = [];
+  attackTargets = [];
+  if (!selectedPieceId || !serverLegalActions.length) return;
+
+  for (const action of serverLegalActions) {
+    if (action.pieceId !== selectedPieceId) continue;
+
+    // Attack actions use different field names for target locale
+    if (action.type === 'raid' || action.type === 'bombardment_declare') {
+      const dest = action.targetLocaleId;
+      if (dest != null && !attackTargets.includes(dest)) attackTargets.push(dest);
+    } else if (action.type === 'assault') {
+      const dest = action.defenseLocaleId;
+      if (dest != null && !attackTargets.includes(dest)) attackTargets.push(dest);
+    } else if (action.to && action.to.localeId != null) {
+      // March / continuation actions
+      const dest = action.to.localeId;
+      if (!legalMoves.includes(dest)) legalMoves.push(dest);
+    }
   }
+}
+
+function handleLocaleClick(localeIdx) {
+  if (selectedPieceId) {
+    // 行軍系アクション（to.localeId が一致するもの）
+    const marchActions = serverLegalActions.filter(a =>
+      a.pieceId === selectedPieceId && a.to && a.to.localeId === localeIdx
+    );
+
+    if (marchActions.length > 0) {
+      // 移動確認ダイアログを表示
+      const piece = gameState.pieces[selectedPieceId];
+      actionPanel.showMoveConfirmDialog(
+        marchActions,
+        piece.localeId,
+        localeIdx,
+        mapData,
+        (action) => {
+          connection.sendAction({ ...action });
+          clearSelection();
+        },
+        () => refreshActionPanel()
+      );
+      return;
+    }
+
+    // 攻撃系アクション（即時実行）
+    const attackAction = serverLegalActions.find(a => {
+      if (a.pieceId !== selectedPieceId) return false;
+      if ((a.type === 'raid' || a.type === 'bombardment_declare') && a.targetLocaleId === localeIdx) return true;
+      if (a.type === 'assault' && a.defenseLocaleId === localeIdx) return true;
+      return false;
+    });
+    if (attackAction) {
+      connection.sendAction({ ...attackAction });
+      clearSelection();
+      scheduleRender();
+      return;
+    }
+  }
+
+  // エリアクリック: そのロケールに自軍駒があれば選択してアクションパネルを更新
+  if (gameState && myState.side) {
+    const pieceInLocale = Object.values(gameState.pieces).find(
+      p => p.localeId === localeIdx && p.side === myState.side && p.strength > 0
+    );
+    if (pieceInLocale) {
+      selectPiece(pieceInLocale.id);
+      return;
+    }
+  }
+
   scheduleRender();
 }
 
@@ -381,9 +511,11 @@ function handleConnect() {
       infoPanel.addLog(`ゲームに参加しました (${s === 'france' ? 'フランス' : 'オーストリア'})`);
     },
 
-    onState(gs) {
+    onState(gs, la) {
+      serverLegalActions = la || [];
       actionPanel.clearInterruptionMode();
       applyState(gs);
+      updateLegalHighlights();
     },
 
     onInterruption(type, options, waitingFor) {

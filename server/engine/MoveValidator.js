@@ -103,6 +103,7 @@ function enemySide(side) {
  */
 function getLegalCrossCountryMoves(piece, state) {
   if (!canAct(piece, state)) return [];
+  if (piece.disordered) return []; // 混乱中は行軍不可
   const results = [];
   const { isApproach, edgeIdx } = getApproachInfo(piece);
 
@@ -186,43 +187,112 @@ function getLegalCrossCountryMoves(piece, state) {
  */
 function getLegalRoadMoves(piece, state) {
   if (!canAct(piece, state)) return [];
+  if (piece.disordered) return []; // 混乱中は行軍不可
   if (!inReserve(piece)) return [];
 
-  const results = [];
-  const reachable = map.getReachableByRoad(piece.localeId, 'any');
+  const MAX_STEPS = 3;
 
-  for (const { localeIdx, path, steps } of reachable) {
-    if (map.isOverCapacity(localeIdx, piece.side, state)) continue;
+  // BFS でステップシミュレーション。
+  // 各横断（road edge）を個別に追跡し、交通制限を適用する。
+  //
+  // BFS ノード: { locale, lastCrossStep, path, majorOnly, crossingPath }
+  //   locale:        現在地ロケールidx
+  //   lastCrossStep: 直前の横断で使用したステップ数（0 = まだ横断なし）
+  //   path:          経由ロケールのリスト（起点含む）
+  //   majorOnly:     ここまでの全エッジが thick road か
+  //   crossingPath:  横断記録 [ { canonicalEdgeId, direction, step } ]
+  //
+  // 同じ (dest, isMajorRoadOnly) の組み合わせは最良のものだけを保持する。
 
-    // 途中ロケールに敵がいれば停止（騎兵急襲の扱いは別途）
-    // TODO: 騎兵が道路行軍中に急襲する場合の扱いは CombatResolver で処理
-    const pathBlocked = path.slice(1, -1).some(
-      idx => map.getLocaleOccupant(idx, state) === enemySide(piece.side)
-    );
-    if (pathBlocked) continue;
+  const bestByKey = new Map(); // key: `${destLocale}:${majorOnly}` → action
 
-    // 主要道路のみ経由か判定
-    const usesOnlyMajorRoad = path.every((idx, i) => {
-      if (i === 0) return true;
-      const rt = map.getRoadTypeBetween(path[i - 1], idx);
-      return rt === 'thick';
-    });
+  const queue = [{
+    locale:        piece.localeId,
+    lastCrossStep: 0,
+    path:          [piece.localeId],
+    majorOnly:     true,
+    crossingPath:  [],
+  }];
 
-    results.push({
-      type: 'road_march',
-      pieceId: piece.id,
-      from: { localeId: piece.localeId, position: 'reserve' },
-      to:   { localeId: localeIdx, position: 'reserve' },
-      path,
-      steps,
-      commandCost: usesOnlyMajorRoad
-        ? COMMAND_COST.major_road_march
-        : COMMAND_COST.road_march,
-      isMajorRoadOnly: usesOnlyMajorRoad,
-    });
+  while (queue.length > 0) {
+    const { locale, lastCrossStep, path, majorOnly, crossingPath } = queue.shift();
+
+    const nextMinStep = lastCrossStep + 1;
+    if (nextMinStep > MAX_STEPS) continue;
+
+    // 隣接ロケールへの全道路エッジを取得し、(adjIdx, newMajorOnly) ごとに
+    // 最良エッジ（最小 minStep）を選択する。
+    const bestEdgeByDest = new Map(); // key: `${adjIdx}:${newMajorOnly}` → {adjIdx, canonicalId, rt, minStep, direction, newMajorOnly}
+
+    for (const { adjIdx, myEdgeIdx } of map.getAdjacent(locale)) {
+      // ループ防止: すでに経路中にあるロケールはスキップ
+      if (path.includes(adjIdx)) continue;
+
+      const rt = map.getRoadType(locale, myEdgeIdx);
+      if (rt !== 'thick' && rt !== 'thin') continue;
+      if (map.isImpassable(locale, myEdgeIdx)) continue;
+      if (rt === 'thin' && !map.canSideUseThinRoad(locale, myEdgeIdx, piece.side)) continue;
+
+      const direction   = `${locale}->${adjIdx}`;
+      const canonicalId = map.getCanonicalCrossingId(locale, myEdgeIdx);
+      if (!canonicalId) continue;
+
+      const { canPass, minStep } = map.checkCrossingTraffic(canonicalId, direction, nextMinStep, state);
+      if (!canPass) continue;
+
+      const newMajorOnly = majorOnly && rt === 'thick';
+      const edgeKey = `${adjIdx}:${newMajorOnly}`;
+      const prev = bestEdgeByDest.get(edgeKey);
+      if (!prev || minStep < prev.minStep) {
+        bestEdgeByDest.set(edgeKey, { adjIdx, canonicalId, rt, minStep, direction, newMajorOnly, myEdgeIdx });
+      }
+    }
+
+    for (const exp of bestEdgeByDest.values()) {
+      const { adjIdx, canonicalId, rt, minStep, direction, newMajorOnly } = exp;
+      const destLocale = adjIdx;
+
+      // 目的地の到達可能性チェック
+      if (map.isOverCapacity(destLocale, piece.side, state)) continue;
+      if (map.getLocaleOccupant(destLocale, state) === enemySide(piece.side)) continue;
+
+      const commandCost  = newMajorOnly ? COMMAND_COST.major_road_march : COMMAND_COST.road_march;
+      const newPath      = [...path, destLocale];
+      const newCrossPath = [...crossingPath, { canonicalEdgeId: canonicalId, direction, step: minStep }];
+
+      const action = {
+        type:           'road_march',
+        pieceId:        piece.id,
+        from:           { localeId: piece.localeId, position: 'reserve' },
+        to:             { localeId: destLocale, position: 'reserve' },
+        path:           newPath,
+        steps:          minStep,
+        commandCost,
+        isMajorRoadOnly: newMajorOnly,
+        crossingPath:   newCrossPath,
+      };
+
+      // 同じ (dest, majorOnly) なら commandCost→steps が最小のものだけ保持
+      const resultKey = `${destLocale}:${newMajorOnly}`;
+      const existing  = bestByKey.get(resultKey);
+      if (!existing ||
+          commandCost < existing.commandCost ||
+          (commandCost === existing.commandCost && minStep < existing.steps)) {
+        bestByKey.set(resultKey, action);
+      }
+
+      // BFS 継続
+      queue.push({
+        locale:        destLocale,
+        lastCrossStep: minStep,
+        path:          newPath,
+        majorOnly:     newMajorOnly,
+        crossingPath:  newCrossPath,
+      });
+    }
   }
 
-  return results;
+  return [...bestByKey.values()];
 }
 
 // ---------------------------------------------------------------------------
@@ -497,6 +567,47 @@ function getLegalEntryActions(state) {
 }
 
 // ---------------------------------------------------------------------------
+// 再編成アクション一覧（Section 14 拡張）
+// ---------------------------------------------------------------------------
+
+/**
+ * 再編成アクションの一覧を返す（フランス軍のみ）。
+ * @param {object} state
+ * @returns {Array}
+ */
+function getLegalReorganizeActions(state) {
+  if (state.activePlayer !== SIDES.FRANCE) return [];
+  if (state.controlToken.holder !== SIDES.FRANCE) return [];
+  if (state.pendingInterruption) return [];
+  // 混乱したフランス駒があるロケールを収集
+  const localesWithDisordered = new Set();
+  for (const piece of Object.values(state.pieces)) {
+    if (piece.side === SIDES.FRANCE && piece.disordered && piece.localeId !== null) {
+      localesWithDisordered.add(piece.localeId);
+    }
+  }
+
+  const results = [];
+  for (const localeId of localesWithDisordered) {
+    const disorderedPieceIds = Object.values(state.pieces)
+      .filter(p => p.localeId === localeId && p.side === SIDES.FRANCE && p.disordered)
+      .map(p => p.id);
+    // CP = 再編成する駒の数。CP不足なら不可
+    const commandCost = disorderedPieceIds.length;
+    if (state.commandPoints < commandCost) continue;
+
+    results.push({
+      type: 'reorganize',
+      localeId,
+      disorderedPieceIds,
+      commandCost,
+    });
+  }
+
+  return results;
+}
+
+// ---------------------------------------------------------------------------
 // 統合: 駒が取れる全合法アクション
 // ---------------------------------------------------------------------------
 
@@ -509,6 +620,7 @@ function getLegalEntryActions(state) {
 function getLegalActions(pieceId, state) {
   const piece = state.pieces[pieceId];
   if (!piece) return [];
+  if (piece.localeId === null) return []; // オフマップ駒は行動不可
   if (piece.side !== state.controlToken.holder) return []; // 制御権チェック
   if (state.pendingInterruption) return []; // インタラプション中は通常アクション不可
 
@@ -533,7 +645,8 @@ function getAllLegalActions(state) {
     .filter(p => p.side === side)
     .flatMap(p => getLegalActions(p.id, state));
   const entryActions = getLegalEntryActions(state);
-  return [...pieceActions, ...entryActions];
+  const reorganizeActions = getLegalReorganizeActions(state);
+  return [...pieceActions, ...entryActions, ...reorganizeActions];
 }
 
 // ---------------------------------------------------------------------------
@@ -556,6 +669,7 @@ module.exports = {
   getLegalAssaults,
   getLegalBombardments,
   canReorganize,
+  getLegalReorganizeActions,
   getLegalEntryActions,
   getLegalActions,
   getAllLegalActions,

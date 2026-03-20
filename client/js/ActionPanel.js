@@ -8,18 +8,19 @@ import CombatDialog from './CombatDialog.js';
 // Action definitions
 const ACTION_GROUPS = [
   {
-    label: '行軍',
+    label: '行軍 (マップをクリック)',
     actions: [
-      { key: 'rough_march',  label: '悪路行軍', types: ['rough_march'] },
-      { key: 'road_march',   label: '道路行軍', types: ['road_march'] },
+      { key: 'cross_country_march', label: '悪路行軍', types: ['cross_country_march', 'defensive_march'] },
+      { key: 'road_march',          label: '道路行軍', types: ['road_march', 'continuation_march'] },
     ],
+    mapSelectOnly: true, // clicking shows hint, does not send action
   },
   {
     label: '攻撃',
     actions: [
-      { key: 'raid',         label: '急 襲', types: ['raid'] },
-      { key: 'assault',      label: '突 撃', types: ['assault'] },
-      { key: 'bombardment',  label: '砲 撃', types: ['bombardment'] },
+      { key: 'raid',               label: '急 襲', types: ['raid'] },
+      { key: 'assault',            label: '突 撃', types: ['assault'] },
+      { key: 'bombardment_declare', label: '砲 撃', types: ['bombardment_declare'] },
     ],
   },
   {
@@ -173,8 +174,11 @@ export default class ActionPanel {
 
         if (hasLegal) {
           btn.addEventListener('click', () => {
-            if (this._onAction) {
-              this._onAction({ type: action.key });
+            if (group.mapSelectOnly) {
+              // March actions require destination — handled by map click
+              if (this._onAction) this._onAction({ type: action.key, _mapSelect: true });
+            } else {
+              if (this._onAction) this._onAction({ type: action.key });
             }
           });
         }
@@ -187,6 +191,123 @@ export default class ActionPanel {
 
     // Enable turn end
     if (this._turnEndBtn) this._turnEndBtn.disabled = !isMyTurn;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 移動確認ダイアログ
+  // ---------------------------------------------------------------------------
+
+  /**
+   * 移動確認ダイアログを表示する。
+   * @param {object[]} actions - 同じ目的地への合法アクション（種別が複数の場合あり）
+   * @param {number} fromLocaleId
+   * @param {number} toLocaleId
+   * @param {object|null} mapData
+   * @param {function} onConfirm - 選択アクションを引数に呼ばれる
+   * @param {function} onCancel
+   */
+  showMoveConfirmDialog(actions, fromLocaleId, toLocaleId, mapData, onConfirm, onCancel) {
+    const el = this._actionPanelEl;
+    if (!el) return;
+
+    const fromName = this._getLocaleName(fromLocaleId, mapData);
+    const toName   = this._getLocaleName(toLocaleId,   mapData);
+
+    el.innerHTML = '';
+
+    const title = document.createElement('div');
+    title.style.cssText = 'color:#4ecca3;font-size:12px;font-weight:bold;margin-bottom:4px;';
+    title.textContent = '移動確認';
+    el.appendChild(title);
+
+    const route = document.createElement('div');
+    route.style.cssText = 'font-size:11px;color:#ccc;margin-bottom:8px;';
+    route.textContent = `${fromName}（${fromLocaleId}）→ ${toName}（${toLocaleId}）`;
+    el.appendChild(route);
+
+    for (const action of actions) {
+      let label;
+      if (action.type === 'road_march') {
+        label = action.isMajorRoadOnly ? '主要道路行軍' : '道路行軍（側道含む）';
+      } else if (action.type === 'cross_country_march') {
+        label = '悪路行軍';
+      } else if (action.type === 'defensive_march') {
+        label = '防御行軍';
+      } else if (action.type === 'continuation_march') {
+        label = '継続行軍';
+      } else {
+        label = action.type;
+      }
+
+      const btn = document.createElement('button');
+      btn.className = 'action-btn';
+      btn.style.cssText = 'display:block;width:100%;margin-bottom:4px;text-align:left;';
+      btn.textContent = `${label}  (${action.commandCost}CP)`;
+      btn.addEventListener('click', () => onConfirm(action));
+      el.appendChild(btn);
+    }
+
+    const btnCancel = document.createElement('button');
+    btnCancel.className = 'action-btn';
+    btnCancel.style.cssText = 'display:block;width:100%;background:#333;margin-top:4px;';
+    btnCancel.textContent = 'キャンセル';
+    btnCancel.addEventListener('click', () => { if (onCancel) onCancel(); });
+    el.appendChild(btnCancel);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 再編成ダイアログ
+  // ---------------------------------------------------------------------------
+
+  showReorganizeDialog(reorganizeAction, gameState, mapData, onConfirm, onCancel) {
+    const el = this._actionPanelEl;
+    if (!el) return;
+
+    const { disorderedPieceIds, localeId } = reorganizeAction;
+    const pieces = gameState.pieces || {};
+    const typeMap = { infantry: '歩兵', cavalry: '騎兵', artillery: '砲兵' };
+    const localeName = this._getLocaleName(localeId, mapData);
+
+    el.innerHTML = '';
+
+    const title = document.createElement('div');
+    title.style.cssText = 'color:#4ecca3;font-size:12px;font-weight:bold;margin-bottom:6px;';
+    title.textContent = `再編成 — ${localeName}`;
+    el.appendChild(title);
+
+    const note = document.createElement('div');
+    note.style.cssText = 'font-size:10px;color:#aaa;margin-bottom:6px;';
+    note.textContent = '以下の全駒を再編成します（一括のみ）:';
+    el.appendChild(note);
+
+    // 対象駒リスト（選択不可・表示のみ）
+    for (const pid of disorderedPieceIds) {
+      const piece = pieces[pid];
+      if (!piece) continue;
+      const row = document.createElement('div');
+      row.style.cssText = 'padding:2px 0;font-size:11px;color:#ccc;';
+      row.textContent = `▶ 仏 ${typeMap[piece.type] || piece.type} (戦力${piece.strength}/${piece.maxStrength})`;
+      el.appendChild(row);
+    }
+
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:6px;margin-top:8px;';
+
+    const cpCost = reorganizeAction.commandCost ?? disorderedPieceIds.length;
+    const btnConfirm = document.createElement('button');
+    btnConfirm.className = 'action-btn';
+    btnConfirm.textContent = `再編成実行 (${cpCost}CP)`;
+    btnConfirm.addEventListener('click', () => onConfirm(disorderedPieceIds));
+
+    const btnCancel = document.createElement('button');
+    btnCancel.className = 'action-btn';
+    btnCancel.style.background = '#333';
+    btnCancel.textContent = 'キャンセル';
+    btnCancel.addEventListener('click', () => { if (onCancel) onCancel(); });
+
+    btnRow.appendChild(btnConfirm);
+    btnRow.appendChild(btnCancel);
+    el.appendChild(btnRow);
   }
 
   // ---------------------------------------------------------------------------

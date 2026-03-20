@@ -12,6 +12,7 @@ const SaveManager = require('./SaveManager');
 const { sanitize } = require('./StateSanitizer');
 const { INTERRUPTION } = require('./engine/GameState');
 const { getValidRetreatDestinations } = require('./engine/CombatResolver');
+const { getAllLegalActions } = require('./engine/MoveValidator');
 
 const INTERRUPTION_TIMEOUT_MS = 120000; // 2 minutes
 
@@ -329,8 +330,15 @@ class GameController {
       console.warn('Auto-save failed:', e.message);
     }
 
+    // Compute legal actions for the control token holder and include in STATE_UPDATE
+    let legalActions = [];
+    try { legalActions = getAllLegalActions(newState); } catch { /* non-fatal */ }
+    const holder = newState.controlToken && newState.controlToken.holder;
+    const extraFrance  = holder === 'france'  ? { legalActions } : { legalActions: [] };
+    const extraAustria = holder === 'austria' ? { legalActions } : { legalActions: [] };
+
     // Broadcast sanitized state to both players
-    this.room.broadcastSanitized(newState);
+    this.room.broadcastSanitized(newState, extraFrance, extraAustria);
 
     // Send interruption or control transfer
     if (interruption) {

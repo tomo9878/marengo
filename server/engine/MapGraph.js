@@ -262,10 +262,14 @@ function getLocaleCount(localeIdx, side, state) {
  * @param {object} state
  * @returns {boolean}
  */
+const DEFAULT_CAPACITY = 10;
+
 function isOverCapacity(localeIdx, side, state) {
   const area = getLocale(localeIdx);
-  if (area.capacity === null || area.capacity === undefined) return false;
-  return getLocaleCount(localeIdx, side, state) >= area.capacity;
+  const capacity = (area.capacity !== null && area.capacity !== undefined)
+    ? area.capacity
+    : DEFAULT_CAPACITY;
+  return getLocaleCount(localeIdx, side, state) >= capacity;
 }
 
 // ---------------------------------------------------------------------------
@@ -284,6 +288,32 @@ function getRoadType(localeIdx, edgeIdx) {
 }
 
 /**
+ * 細道（thin road）のアクセス制限を返す。
+ * null = 両軍使用可、'france' = 仏軍のみ、'austria' = 墺軍のみ。
+ * thick road には適用しない（常に両軍使用可）。
+ * @param {number} localeIdx
+ * @param {number} edgeIdx
+ * @returns {'france' | 'austria' | null}
+ */
+function getThinRoadAccess(localeIdx, edgeIdx) {
+  const area = getLocale(localeIdx);
+  return area.edges[edgeIdx]?.road_access ?? null;
+}
+
+/**
+ * 指定サイドがそのエッジの細道を使用できるか判定する。
+ * @param {number} localeIdx
+ * @param {number} edgeIdx
+ * @param {'france' | 'austria'} side
+ * @returns {boolean}
+ */
+function canSideUseThinRoad(localeIdx, edgeIdx, side) {
+  const access = getThinRoadAccess(localeIdx, edgeIdx);
+  if (access === null) return true;  // 両軍使用可
+  return access === side;
+}
+
+/**
  * 2つの隣接ロケール間の道路タイプを返す。
  * 双方のエッジを確認し、thickまたはthinがあればそれを返す。
  * @param {number} localeA
@@ -291,9 +321,13 @@ function getRoadType(localeIdx, edgeIdx) {
  * @returns {'thick' | 'thin' | 'none' | null}
  */
 function getRoadTypeBetween(localeA, localeB) {
-  const adj = getAdjacent(localeA).find(e => e.adjIdx === localeB);
-  if (!adj) return null;
-  return getRoadType(localeA, adj.myEdgeIdx);
+  // 複数辺が存在する場合は最良の道路タイプを返す（thick > thin > none）
+  const adjs = getAdjacent(localeA).filter(e => e.adjIdx === localeB);
+  if (adjs.length === 0) return null;
+  const types = adjs.map(e => getRoadType(localeA, e.myEdgeIdx));
+  if (types.includes('thick')) return 'thick';
+  if (types.includes('thin')) return 'thin';
+  return 'none';
 }
 
 /**
@@ -369,42 +403,110 @@ function getReachableByRoad(fromIdx, roadType = 'any') {
   return results;
 }
 
+/**
+ * パス内の全細道セグメントが指定サイドに使用可能か判定する。
+ * @param {number[]} path - ロケールidxのリスト
+ * @param {'france' | 'austria'} side
+ * @returns {boolean}
+ */
+function isPathAccessibleForSide(path, side) {
+  for (let i = 0; i < path.length - 1; i++) {
+    const from = path[i];
+    const to   = path[i + 1];
+    const adjs = getAdjacent(from).filter(e => e.adjIdx === to);
+    for (const { myEdgeIdx } of adjs) {
+      const rt = getRoadType(from, myEdgeIdx);
+      if (rt === 'thin' && !canSideUseThinRoad(from, myEdgeIdx, side)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 // ---------------------------------------------------------------------------
-// 横断（Crossing）
+// 横断（Crossing）— エッジベース交通制限
 // ---------------------------------------------------------------------------
 
 /**
- * 2つの隣接ロケール間の横断情報を返す。
+ * エッジの canonical crossing ID を返す。
+ * 2つのロケールを結ぶ個別の道路が1つの「横断」。
+ * 双方のエッジID（id と shared_with）のうち辞書順で小さい方を canonical ID とする。
+ * @param {number} localeIdx
+ * @param {number} edgeIdx
+ * @returns {string | null}
+ */
+function getCanonicalCrossingId(localeIdx, edgeIdx) {
+  const area = getLocale(localeIdx);
+  const edge = area.edges[edgeIdx];
+  if (!edge?.id) return null;
+  const myId = edge.id;
+  const theirId = edge.shared_with;
+  if (!theirId) return myId;
+  return myId < theirId ? myId : theirId;
+}
+
+/**
+ * 2つのロケール間の全道路エッジを返す（指定サイドがアクセス可能なもの）。
+ * エリア間に複数の道路がある場合、それぞれが独立した横断。
  * @param {number} localeA
  * @param {number} localeB
- * @returns {object | null} crossings エントリ
+ * @param {'france' | 'austria' | null} side - null なら全エッジを返す
+ * @returns {Array<{ edgeIdx: number, canonicalId: string, roadType: string }>}
  */
-function getCrossing(localeA, localeB) {
-  return mapData.crossings?.find(
-    c => (c.localeA === localeA && c.localeB === localeB) ||
-         (c.localeA === localeB && c.localeB === localeA)
-  ) ?? null;
+function getRoadEdgesBetween(localeA, localeB, side = null) {
+  const adjs = getAdjacent(localeA).filter(e => e.adjIdx === localeB);
+  const result = [];
+  for (const { myEdgeIdx } of adjs) {
+    const rt = getRoadType(localeA, myEdgeIdx);
+    if (rt !== 'thick' && rt !== 'thin') continue;
+    if (isImpassable(localeA, myEdgeIdx)) continue;
+    if (rt === 'thin' && side && !canSideUseThinRoad(localeA, myEdgeIdx, side)) continue;
+    const canonicalId = getCanonicalCrossingId(localeA, myEdgeIdx);
+    if (!canonicalId) continue;
+    result.push({ edgeIdx: myEdgeIdx, canonicalId, roadType: rt });
+  }
+  return result;
 }
 
 /**
  * 横断の交通制限チェック。
- * 同一ターン中、横断を通過できる駒は最大3つ。
- * また各駒は前の駒よりも多いステップ数が必要。
  *
- * @param {string} crossingId
- * @param {number} currentSteps - 今通過しようとしている駒のステップ数
- * @param {object} state
- * @returns {{ canPass: boolean, mustWaitSteps: number }}
+ * 仕様:
+ * - 1横断につき 1ターン最大3駒まで通過可。
+ * - 後続の駒は直前に通過した駒より大きなステップ数で通過しなければならない。
+ * - 一度使用された方向と逆方向からは通過不可（逆走禁止）。
+ *
+ * @param {string} canonicalId  - canonical crossing ID（エッジ ID）
+ * @param {string} direction    - 方向文字列 "fromLocale->toLocale"
+ * @param {number} minPieceStep - この駒が最早で通過できるステップ（前の横断ステップ+1）
+ * @param {object} state        - GameState
+ * @returns {{ canPass: boolean, minStep: number }} minStep は実際に通過するステップ
  */
-function checkCrossingTraffic(crossingId, currentSteps, state) {
-  const traffic = state.crossingTraffic[crossingId] || [];
-  if (traffic.length >= 3) return { canPass: false, mustWaitSteps: Infinity };
+function checkCrossingTraffic(canonicalId, direction, minPieceStep, state) {
+  const traffic = state.crossingTraffic[canonicalId] || [];
 
-  const lastSteps = traffic.length > 0 ? traffic[traffic.length - 1].steps : -1;
-  if (currentSteps <= lastSteps) {
-    return { canPass: false, mustWaitSteps: lastSteps + 1 };
+  // 逆走禁止チェック（方向が異なる駒が既に通過していれば拒否）
+  if (traffic.some(t => t.direction !== direction)) {
+    return { canPass: false, minStep: Infinity };
   }
-  return { canPass: true, mustWaitSteps: 0 };
+
+  // 最大3駒制限
+  if (traffic.length >= 3) {
+    return { canPass: false, minStep: Infinity };
+  }
+
+  // 空きスロット探索: minPieceStep 以上で最小の未使用ステップを選ぶ。
+  // ステップ2が使用済みでもステップ1が空いていれば使用可能。
+  // （1駒の行軍内では時刻は単調増加なので minPieceStep の下限は維持する）
+  const usedSteps = new Set(traffic.map(t => t.steps));
+  for (let step = minPieceStep; step <= 3; step++) {
+    if (!usedSteps.has(step)) {
+      return { canPass: true, minStep: step };
+    }
+  }
+
+  return { canPass: false, minStep: Infinity };
 }
 
 // ---------------------------------------------------------------------------
@@ -443,8 +545,12 @@ module.exports = {
   getRoadTypeBetween,
   getRoadPath,
   getReachableByRoad,
+  getThinRoadAccess,
+  canSideUseThinRoad,
+  isPathAccessibleForSide,
 
   // 横断
-  getCrossing,
+  getCanonicalCrossingId,
+  getRoadEdgesBetween,
   checkCrossingTraffic,
 };

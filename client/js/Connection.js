@@ -119,7 +119,7 @@ export default class Connection {
 
       case 'STATE_UPDATE':
         if (this.handlers.onState) {
-          this.handlers.onState(msg.gameState);
+          this.handlers.onState(msg.gameState, msg.legalActions || []);
         }
         break;
 
