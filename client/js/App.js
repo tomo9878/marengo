@@ -9,6 +9,7 @@ import MapRenderer from './MapRenderer.js';
 import InfoPanel from './InfoPanel.js';
 import ActionPanel from './ActionPanel.js';
 import SavePanel from './SavePanel.js';
+import OffMapPanel from './OffMapPanel.js';
 
 // ---------------------------------------------------------------------------
 // App state
@@ -22,6 +23,7 @@ let mapRenderer = null;
 let infoPanel = null;
 let actionPanel = null;
 let savePanel = null;
+let offMapPanel = null;
 let mapData = null;
 
 let selectedPieceId = null;
@@ -65,6 +67,8 @@ async function init() {
     ()       => handleTurnEnd()
   );
 
+  offMapPanel = new OffMapPanel();
+
   // Size canvas
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas);
@@ -81,6 +85,16 @@ async function init() {
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
     handleCanvasClick(sx, sy);
+  });
+
+  // Debug: D key toggles area index display
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'd' || e.key === 'D') {
+      if (mapRenderer) {
+        mapRenderer.showAreaIdx = !mapRenderer.showAreaIdx;
+        scheduleRender();
+      }
+    }
   });
 
   // Connect modal
@@ -185,9 +199,23 @@ function applyState(newState) {
     if (last) infoPanel.addLog(last);
   }
 
+  // Update off-map panel
+  if (offMapPanel) {
+    offMapPanel.update(gameState, myState?.side, handleEntryAction);
+  }
+
   // Recompute legal actions for selected piece
   refreshActionPanel();
   scheduleRender();
+}
+
+/**
+ * オーストリア入場アクションを送信する。
+ * @param {string} pieceId
+ */
+function handleEntryAction(pieceId) {
+  if (!connection) return;
+  connection.sendAction({ type: 'ENTER_MAP', pieceId });
 }
 
 /**

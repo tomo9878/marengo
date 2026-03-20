@@ -8,7 +8,7 @@
  * interruption が null でなければクライアントの応答待ち。
  */
 
-const { SIDES, PHASES, INTERRUPTION, cloneState, resetCommandPoints } = require('./GameState');
+const { SIDES, PHASES, INTERRUPTION, cloneState, addLog, resetCommandPoints } = require('./GameState');
 const map = require('./MapGraph');
 const morale = require('./MoraleManager');
 const combat = require('./CombatResolver');
@@ -118,6 +118,9 @@ function executeAction(action, state) {
 
     case 'reorganize':
       return executeReorganize(action, state);
+
+    case 'ENTER_MAP':
+      return executeEnterMap(action, state);
 
     default:
       throw new Error(`Unknown action type: ${action.type}`);
@@ -310,6 +313,59 @@ function executeReorganize(action, state) {
       next.pieces[piece.id] = { ...piece, disordered: false };
     }
   }
+
+  return { newState: next, interruption: null };
+}
+
+/**
+ * マップ入場（オーストリア）。
+ * ボルミダ川渡河点からマップへ入場させる。
+ */
+function executeEnterMap(action, state) {
+  const { BORMIDA_ENTRY_LOCALE_IDX, ARTILLERY_ENTRY_MIN_ROUND, MAX_ENTRIES_PER_TURN } = validator;
+
+  let next = cloneState(state);
+  const piece = next.pieces[action.pieceId];
+
+  // バリデーション
+  if (!piece) throw new Error(`Piece not found: ${action.pieceId}`);
+  if (piece.localeId !== null) throw new Error(`Piece is already on the map: ${action.pieceId}`);
+  if (piece.side !== SIDES.AUSTRIA) throw new Error(`Only Austrian pieces can enter via Bormida: ${action.pieceId}`);
+
+  const entriesThisTurn = next.entriesThisTurn ?? 0;
+  if (entriesThisTurn >= MAX_ENTRIES_PER_TURN) {
+    throw new Error(`Maximum entries per turn (${MAX_ENTRIES_PER_TURN}) reached`);
+  }
+
+  if (piece.type === 'artillery' && next.round < ARTILLERY_ENTRY_MIN_ROUND) {
+    throw new Error(`Artillery cannot enter before round ${ARTILLERY_ENTRY_MIN_ROUND} (7AM)`);
+  }
+
+  // コスト計算: 最初の入場は0CP（ポンツーン橋）、以降は1CP
+  const cost = entriesThisTurn === 0 ? 0 : 1;
+  if (cost > next.commandPoints) {
+    throw new Error(`Not enough command points (need ${cost}, have ${next.commandPoints})`);
+  }
+
+  // 司令ポイント消費
+  next.commandPoints -= cost;
+
+  // 駒をマップ上に配置（リザーブ、裏向き）
+  next.pieces[action.pieceId] = {
+    ...piece,
+    localeId: BORMIDA_ENTRY_LOCALE_IDX,
+    position: 'reserve',
+    faceUp: false,
+  };
+
+  // 入場済み駒として記録
+  next.actedPieceIds.add(action.pieceId);
+
+  // 入場カウントを更新
+  next.entriesThisTurn = entriesThisTurn + 1;
+
+  // ログ追加
+  next = addLog(next, `オーストリア駒 ${action.pieceId} がボルミダ川よりマップに入場 (コスト: ${cost}CP)`);
 
   return { newState: next, interruption: null };
 }

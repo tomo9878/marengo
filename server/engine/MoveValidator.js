@@ -13,6 +13,14 @@ const { SIDES, PIECE_TYPES } = require('./GameState');
 const map = require('./MapGraph');
 
 // ---------------------------------------------------------------------------
+// マップ入場の定数
+// ---------------------------------------------------------------------------
+
+const BORMIDA_ENTRY_LOCALE_IDX = 0; // TODO: update after area identification
+const ARTILLERY_ENTRY_MIN_ROUND = 2; // 7AM = round 2 (per scenarios.json artilleryAvailableFrom)
+const MAX_ENTRIES_PER_TURN = 4;
+
+// ---------------------------------------------------------------------------
 // 司令コスト
 // ---------------------------------------------------------------------------
 
@@ -432,6 +440,63 @@ function canReorganize(localeId, state) {
 }
 
 // ---------------------------------------------------------------------------
+// マップ入場（オーストリア）
+// ---------------------------------------------------------------------------
+
+/**
+ * オーストリアのマップ外駒をマップに入場させる合法アクションを返す。
+ * ポンツーン橋: 最初の入場は0CP、以降は1CPずつ消費。最大4駒/ターン。
+ * 砲兵はラウンド2（7AM）以降のみ入場可能。
+ *
+ * @param {object} state
+ * @returns {Array<EnterMapAction>}
+ */
+function getLegalEntryActions(state) {
+  // オーストリアのターンかつオーストリアが制御権を持つ場合のみ
+  if (state.activePlayer !== SIDES.AUSTRIA) return [];
+  if (state.controlToken.holder !== SIDES.AUSTRIA) return [];
+  if (state.pendingInterruption) return [];
+
+  // 最大入場数チェック
+  const entriesThisTurn = state.entriesThisTurn ?? 0;
+  if (entriesThisTurn >= MAX_ENTRIES_PER_TURN) return [];
+
+  // このアクションのコストを計算
+  const cost = entriesThisTurn === 0 ? 0 : 1;
+  if (cost > state.commandPoints) return [];
+
+  // マップ外のオーストリア駒を取得
+  const offMapPieces = Object.values(state.pieces).filter(
+    p => p.side === SIDES.AUSTRIA && p.localeId === null && p.strength > 0
+  );
+  if (offMapPieces.length === 0) return [];
+
+  // タイプ別にグループ化（type + maxStrength でユニーク）
+  const groups = new Map();
+  for (const piece of offMapPieces) {
+    const key = `${piece.type}_${piece.maxStrength}`;
+    if (!groups.has(key)) {
+      groups.set(key, piece);
+    }
+  }
+
+  const results = [];
+  for (const [, piece] of groups) {
+    // 砲兵はラウンド2以降のみ
+    if (piece.type === PIECE_TYPES.ARTILLERY && state.round < ARTILLERY_ENTRY_MIN_ROUND) {
+      continue;
+    }
+    results.push({
+      type: 'ENTER_MAP',
+      pieceId: piece.id,
+      cost,
+    });
+  }
+
+  return results;
+}
+
+// ---------------------------------------------------------------------------
 // 統合: 駒が取れる全合法アクション
 // ---------------------------------------------------------------------------
 
@@ -464,9 +529,11 @@ function getLegalActions(pieceId, state) {
 function getAllLegalActions(state) {
   if (state.pendingInterruption) return [];
   const side = state.controlToken.holder;
-  return Object.values(state.pieces)
+  const pieceActions = Object.values(state.pieces)
     .filter(p => p.side === side)
     .flatMap(p => getLegalActions(p.id, state));
+  const entryActions = getLegalEntryActions(state);
+  return [...pieceActions, ...entryActions];
 }
 
 // ---------------------------------------------------------------------------
@@ -475,6 +542,9 @@ function getAllLegalActions(state) {
 
 module.exports = {
   COMMAND_COST,
+  BORMIDA_ENTRY_LOCALE_IDX,
+  ARTILLERY_ENTRY_MIN_ROUND,
+  MAX_ENTRIES_PER_TURN,
   canAct,
   inReserve,
   getApproachInfo,
@@ -486,6 +556,7 @@ module.exports = {
   getLegalAssaults,
   getLegalBombardments,
   canReorganize,
+  getLegalEntryActions,
   getLegalActions,
   getAllLegalActions,
 };

@@ -115,6 +115,9 @@ function createInitialState() {
     // 同一ターンに2つのアクションを取った駒を追跡
     actedPieceIds: new Set(),
 
+    // --- このターンのマップ入場数 ---
+    entriesThisTurn: 0,
+
     // --- ゲームログ ---
     log: [],
   };
@@ -275,6 +278,7 @@ function resetCommandPoints(state) {
   next.commandPoints = 3;
   next.actedPieceIds = new Set();
   next.crossingTraffic = {};
+  next.entriesThisTurn = 0;
   // 砲撃予約は前のターンのものを引き継ぐ（完遂判定はTurnManagerで行う）
   return next;
 }
