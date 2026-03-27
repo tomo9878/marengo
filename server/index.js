@@ -158,6 +158,12 @@ const httpServer = http.createServer((req, res) => {
       return;
     }
 
+    // GET /robots.txt → client/robots.txt
+    if (reqUrl === '/robots.txt') {
+      serveStatic(path.join(PROJECT_ROOT, 'client', 'robots.txt'), res);
+      return;
+    }
+
     // GET /js/* → client/js/*
     if (reqUrl.startsWith('/js/')) {
       const rel = reqUrl.slice('/js/'.length);
