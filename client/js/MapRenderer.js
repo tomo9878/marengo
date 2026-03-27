@@ -109,11 +109,12 @@ export default class MapRenderer {
    * Full render pass.
    * @param {object|null} gameState
    * @param {string|null} selectedPieceId
-   * @param {number[]} legalMoves - array of locale indices
+   * @param {number[]} legalMovesCp0 - CP0で到達可能なロケール（主要道路・無料）
+   * @param {number[]} legalMovesCp1 - CP1で到達可能なロケール（細い道）
    * @param {number[]} attackTargets - array of locale indices
    * @param {object} myState - { side }
    */
-  render(gameState, selectedPieceId, legalMoves, attackTargets, myState) {
+  render(gameState, selectedPieceId, legalMovesCp0, legalMovesCp1, attackTargets, myState) {
     const ctx = this.ctx;
     const W = this.canvas.width;
     const H = this.canvas.height;
@@ -135,7 +136,7 @@ export default class MapRenderer {
 
     // 2. Draw locale overlays (semi-transparent highlights only)
     for (const area of areas) {
-      this._drawLocale(area, legalMoves, attackTargets, selectedPieceId, gameState);
+      this._drawLocale(area, legalMovesCp0, legalMovesCp1, attackTargets, selectedPieceId, gameState);
     }
 
     // 3. Draw objective line
@@ -157,7 +158,7 @@ export default class MapRenderer {
     }
   }
 
-  _drawLocale(area, legalMoves, attackTargets, selectedPieceId, gameState) {
+  _drawLocale(area, legalMovesCp0, legalMovesCp1, attackTargets, selectedPieceId, gameState) {
     const ctx = this.ctx;
     const poly = area.polygon;
     if (!poly || poly.length < 2) return;
@@ -173,11 +174,17 @@ export default class MapRenderer {
     ctx.closePath();
 
     // Overlay fill: only for legal moves / attack targets (board image is the base)
-    const isLegalMove    = legalMoves && legalMoves.includes(area.idx);
+    const isCp0         = legalMovesCp0 && legalMovesCp0.includes(area.idx);
+    const isCp1         = legalMovesCp1 && legalMovesCp1.includes(area.idx);
     const isAttackTarget = attackTargets && attackTargets.includes(area.idx);
 
-    if (isLegalMove) {
-      ctx.fillStyle = 'rgba(78, 204, 163, 0.30)';
+    if (isCp0) {
+      // CP0: 主要道路（無料）— ティール
+      ctx.fillStyle = 'rgba(78, 204, 163, 0.35)';
+      ctx.fill();
+    } else if (isCp1) {
+      // CP1: 細い道（1司令）— 薄青
+      ctx.fillStyle = 'rgba(100, 160, 255, 0.35)';
       ctx.fill();
     } else if (isAttackTarget) {
       ctx.fillStyle = 'rgba(233, 69, 96, 0.30)';
@@ -294,10 +301,12 @@ export default class MapRenderer {
     const positions = this._computePiecePositions(gameState);
     for (const [pid, piece] of Object.entries(gameState.pieces)) {
       const pos = positions[pid];
-      if (!pos) continue;
 
       // アプローチ駒は矢印を先に描画（駒の下）
       const approachMatch = piece.position && piece.position.match(/^approach_(\d+)$/);
+
+      if (!pos) continue;
+
       if (approachMatch && piece.localeId != null) {
         const edgeIdx = Number(approachMatch[1]);
         this._drawApproachArrow(piece.localeId, edgeIdx, pos.x, pos.y, pos.pw);

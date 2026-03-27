@@ -256,6 +256,61 @@ export default class ActionPanel {
   }
 
   // ---------------------------------------------------------------------------
+  // アプローチ配置ダイアログ
+  // ---------------------------------------------------------------------------
+
+  /**
+   * アプローチ配置（防御行軍・悪路行軍→アプローチ）の選択ダイアログを表示。
+   * @param {object[]} actions - 同ロケール内アプローチへのアクション群
+   * @param {number} localeId
+   * @param {object|null} mapData
+   * @param {function} onConfirm
+   * @param {function} onCancel
+   */
+  showApproachDialog(actions, localeId, mapData, onConfirm, onCancel) {
+    const el = this._actionPanelEl;
+    if (!el) return;
+
+    const localeName = this._getLocaleName(localeId, mapData);
+    el.innerHTML = '';
+
+    const title = document.createElement('div');
+    title.style.cssText = 'color:#4ecca3;font-size:12px;font-weight:bold;margin-bottom:4px;';
+    title.textContent = `アプローチ配置 — ${localeName}`;
+    el.appendChild(title);
+
+    const note = document.createElement('div');
+    note.style.cssText = 'font-size:10px;color:#aaa;margin-bottom:8px;';
+    note.textContent = '配置するアプローチを選択:';
+    el.appendChild(note);
+
+    const typeLabel = {
+      defensive_march:    '防御行軍',
+      cross_country_march: '悪路行軍',
+    };
+
+    for (const action of actions) {
+      const m = action.to.position.match(/^approach_(\d+)$/);
+      const edgeNum = m ? m[1] : '?';
+      const label = typeLabel[action.type] || action.type;
+
+      const btn = document.createElement('button');
+      btn.className = 'action-btn';
+      btn.style.cssText = 'display:block;width:100%;margin-bottom:4px;text-align:left;';
+      btn.textContent = `${label} アプローチ${edgeNum}  (${action.commandCost}CP)`;
+      btn.addEventListener('click', () => onConfirm(action));
+      el.appendChild(btn);
+    }
+
+    const btnCancel = document.createElement('button');
+    btnCancel.className = 'action-btn';
+    btnCancel.style.cssText = 'display:block;width:100%;background:#333;margin-top:4px;';
+    btnCancel.textContent = 'キャンセル';
+    btnCancel.addEventListener('click', () => { if (onCancel) onCancel(); });
+    el.appendChild(btnCancel);
+  }
+
+  // ---------------------------------------------------------------------------
   // 再編成ダイアログ
   // ---------------------------------------------------------------------------
 
@@ -368,6 +423,15 @@ export default class ActionPanel {
       case 'retreat_destination':
         dialog.renderRetreatDestination(el, options, gameState, wrap(onResponse));
         break;
+      case 'attacker_approach':
+        dialog.renderAttackerApproach(el, options, gameState, wrap(onResponse));
+        break;
+      case 'morale_token_removal':
+        dialog.renderMoraleTokenRemoval(el, options, gameState, wrap(onResponse));
+        break;
+      case 'france_morale_recovery':
+        dialog.renderFranceMoraleRecovery(el, options, gameState, wrap(onResponse));
+        break;
       default: {
         const msg = document.createElement('div');
         msg.className = 'interruption-title';
@@ -376,6 +440,21 @@ export default class ActionPanel {
         break;
       }
     }
+  }
+
+  /**
+   * Show spectator message (no actions available).
+   */
+  showSpectatorMessage() {
+    if (this._interruptionActive) return;
+    const el = this._actionPanelEl;
+    if (!el) return;
+    el.innerHTML = '';
+    const msg = document.createElement('div');
+    msg.className = 'not-my-turn-msg';
+    msg.textContent = '観戦中（操作不可）';
+    el.appendChild(msg);
+    if (this._turnEndBtn) this._turnEndBtn.disabled = true;
   }
 
   /**

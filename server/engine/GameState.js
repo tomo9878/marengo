@@ -40,6 +40,9 @@ const INTERRUPTION = Object.freeze({
   ASSAULT_REDUCTIONS:     'assault_reductions',      // 突撃⑤: 戦力減少割振り
   BOMBARDMENT_REDUCTION:  'bombardment_reduction',   // 砲撃完遂: 減少駒選択
   RETREAT_DESTINATION:    'retreat_destination',     // 退却先選択
+  ATTACKER_APPROACH:      'attacker_approach',       // 急襲後: 攻撃側アプローチ移動オプション
+  MORALE_TOKEN_REMOVAL:   'morale_token_removal',    // 士気トークン除去: 相手が対象を選ぶ
+  FRANCE_MORALE_RECOVERY: 'france_morale_recovery',  // フランス士気回収: 1トークン返還
 });
 
 // ---------------------------------------------------------------------------
@@ -118,6 +121,46 @@ function createInitialState() {
     // --- このターンのマップ入場数 ---
     entriesThisTurn: 0,
 
+    // --- このターンに投入した士気トークン記録 ---
+    // フランス回収時に「このターン置いたもの」を除外するために使う
+    // [ { side, localeId }, ... ]  ターン開始時にリセット
+    moraleTokensPlacedThisTurn: [],
+
+    // --- 直前の相手ターン中に投入されたフランストークン ---
+    // FRANCE_MORALE_RECOVERY 時に「直前のオーストリアターンに置かれたもの」を除外するために使う
+    // [ { side, localeId }, ... ]  オーストリアターン終了時に更新
+    moraleTokensPlacedByEnemyLastTurn: [],
+
+    // --- 突撃敗北後のブロック済みアプローチ ---
+    // [ { localeId, edgeIdx }, ... ]  ターン開始時にリセット
+    // 同一ターン中に同じアプローチを通じて攻撃・行軍不可
+    blockedApproachesAfterAssault: [],
+
+    // --- 突撃勝利後の道路行軍禁止ロケール ---
+    // [ localeId, ... ]  ターン開始時にリセット
+    // 突撃に勝利した場合、そのターン中は元の防御側ロケールへの道路行軍不可
+    roadMarchBlockedLocales: [],
+
+    // --- このターンに急襲したアプローチの記録 ---
+    // [ { localeId, edgeIdx }, ... ]  ターン開始時にリセット
+    // 2トークン条件「最初の急襲」チェック用
+    raidHistoryThisTurn: [],
+
+    // --- このターンに道路行軍急襲に使った横断IDの記録 ---
+    // [ canonicalEdgeId, ... ]  ターン開始時にリセット
+    // 同一横断を道路行軍急襲に2回以上使用禁止
+    roadMarchRaidCrossings: [],
+
+    // --- ロケールの最後の占拠側 ---
+    // { [localeId]: side }  ゲーム全体を通じて維持（リセットなし）
+    // 士気クリーンアップで「最後に敵がいた」条件に使用
+    localeLastOccupant: {},
+
+    // --- 未処理の士気マップトークン除去 ---
+    // reduceMorale でuncommitted不足の場合に積む → 相手がトークンを選んで除去するインタラプション
+    // [ { side, amount }, ... ]
+    pendingMoraleRemovals: [],
+
     // --- ゲームログ ---
     log: [],
   };
@@ -130,7 +173,7 @@ function createInitialState() {
  * @param {boolean} disordered - フランス軍は6AMで混乱
  * @returns {PieceState}
  */
-function createPieceState(pieceId, def, disordered = false) {
+function createPieceState(pieceId, def, disordered = false, entryArea = null) {
   return {
     id: pieceId,
     side: pieceId.startsWith('FR') ? SIDES.FRANCE : SIDES.AUSTRIA,
@@ -143,6 +186,7 @@ function createPieceState(pieceId, def, disordered = false) {
     // position: 'reserve' | 'approach_0' | 'approach_1' | ... | 'approach_N'
     position: 'reserve',
     actedThisTurn: false,
+    entryArea,             // フランス増援の進入可能ラウンド区分（null = 増援なし）
   };
 }
 
@@ -160,9 +204,20 @@ function initializePieces(state) {
     next.pieces[def.id] = createPieceState(def.id, def, false);
   }
 
-  // --- フランス増援：オフマップ待機（localeId: null）---
-  for (const def of pieceDefs.france.renforts) {
-    next.pieces[def.id] = createPieceState(def.id, def, true);
+  // --- フランス増援：オフマップ待機（localeId: null）、時間帯をランダムシャッフル ---
+  // 全9駒をシャッフルし、シナリオ定義のスロット順（500→1100→1600）に割り当て
+  const renfortIds = pieceDefs.france.renforts.map(d => d.id);
+  for (let i = renfortIds.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [renfortIds[i], renfortIds[j]] = [renfortIds[j], renfortIds[i]];
+  }
+  let renfortIdx = 0;
+  for (const slot of scenarios.reinforcements.france) {
+    for (let c = 0; c < slot.count; c++) {
+      const pieceId = renfortIds[renfortIdx++];
+      const def = pieceDefs.france.renforts.find(d => d.id === pieceId);
+      next.pieces[pieceId] = createPieceState(pieceId, def, true, slot.area);
+    }
   }
 
   // --- フランス初期配置（auDébut）：ランダムにセットアップエリアへ配置 ---
@@ -303,6 +358,12 @@ function resetCommandPoints(state) {
   next.actedPieceIds = new Set();
   next.crossingTraffic = {};
   next.entriesThisTurn = 0;
+  next.moraleTokensPlacedThisTurn = [];
+  next.pendingMoraleRemovals = [];
+  next.blockedApproachesAfterAssault = [];
+  next.roadMarchBlockedLocales = [];
+  next.raidHistoryThisTurn = [];
+  next.roadMarchRaidCrossings = [];
   // 砲撃予約は前のターンのものを引き継ぐ（完遂判定はTurnManagerで行う）
   return next;
 }

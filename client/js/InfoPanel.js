@@ -71,23 +71,36 @@ export default class InfoPanel {
     // Turn indicator
     if (this._turnIndicator) {
       const pending = gameState.pendingInterruption;
-      const sideLabel = mySide === 'france' ? 'あなた(仏)' : 'あなた(墺)';
 
-      if (pending) {
-        if (pending.waitingFor === mySide) {
-          this._turnIndicator.textContent = '応答待ち (あなた)';
-          this._turnIndicator.className = 'waiting';
+      if (mySide === 'spectator') {
+        // 観戦者: 「あなた」表現なし、中立表示
+        if (pending) {
+          const waitLabel = pending.waitingFor === 'france' ? 'フランス(仏)' : 'オーストリア(墺)';
+          this._turnIndicator.textContent = `応答待ち: ${waitLabel}`;
+          this._turnIndicator.className = 'opponent';
         } else {
-          this._turnIndicator.textContent = '応答待ち (相手)';
+          const turnLabel = holder === 'france' ? 'フランス(仏)' : 'オーストリア(墺)';
+          this._turnIndicator.textContent = `手番: ${turnLabel}`;
           this._turnIndicator.className = 'opponent';
         }
-      } else if (holder === mySide) {
-        this._turnIndicator.textContent = `手番: ${sideLabel}`;
-        this._turnIndicator.className = 'my-turn';
       } else {
-        const oppLabel = mySide === 'france' ? '相手(墺)' : '相手(仏)';
-        this._turnIndicator.textContent = `手番: ${oppLabel}`;
-        this._turnIndicator.className = 'opponent';
+        const sideLabel = mySide === 'france' ? 'あなた(仏)' : 'あなた(墺)';
+        if (pending) {
+          if (pending.waitingFor === mySide) {
+            this._turnIndicator.textContent = '応答待ち (あなた)';
+            this._turnIndicator.className = 'waiting';
+          } else {
+            this._turnIndicator.textContent = '応答待ち (相手)';
+            this._turnIndicator.className = 'opponent';
+          }
+        } else if (holder === mySide) {
+          this._turnIndicator.textContent = `手番: ${sideLabel}`;
+          this._turnIndicator.className = 'my-turn';
+        } else {
+          const oppLabel = mySide === 'france' ? '相手(墺)' : '相手(仏)';
+          this._turnIndicator.textContent = `手番: ${oppLabel}`;
+          this._turnIndicator.className = 'opponent';
+        }
       }
     }
 

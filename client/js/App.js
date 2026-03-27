@@ -27,9 +27,15 @@ let offMapPanel = null;
 let mapData = null;
 
 let selectedPieceId = null;
-let legalMoves = [];
+let legalMovesCp0 = []; // CP0（主要道路・無料）
+let legalMovesCp1 = []; // CP1（細い道・1司令）
 let attackTargets = [];
 let serverLegalActions = []; // latest legalActions from server
+
+// Solo / spectator mode flags
+let isSoloMode = false;
+let isSpectatorMode = false;
+let soloConnections = null; // { france: Connection, austria: Connection }
 
 // ---------------------------------------------------------------------------
 // DOM refs
@@ -44,6 +50,8 @@ const canvas            = document.getElementById('mapCanvas');
 const btnSave           = document.getElementById('btnSave');
 const btnShowSaveList   = document.getElementById('btnShowSaveList');
 const saveListContainer = document.getElementById('saveListContainer');
+const soloIndicatorEl   = document.getElementById('soloIndicator');
+const soloActiveSideEl  = document.getElementById('soloActiveSide');
 
 // ---------------------------------------------------------------------------
 // Initialization
@@ -151,6 +159,15 @@ async function init() {
     });
   }
 
+  // URLパラメータからゲームIDとモードを事前入力
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlGameId = urlParams.get('gameId');
+  const urlSolo   = urlParams.get('solo') === 'true';
+  const urlSide   = urlParams.get('side');
+  if (urlGameId && inputGameId) inputGameId.value = urlGameId;
+  if (urlSolo && inputSide) inputSide.value = 'solo';
+  else if (urlSide && inputSide) inputSide.value = urlSide;
+
   // Initial render
   scheduleRender();
 }
@@ -178,9 +195,50 @@ function scheduleRender() {
   requestAnimationFrame(() => {
     _renderPending = false;
     if (mapRenderer) {
-      mapRenderer.render(gameState, selectedPieceId, legalMoves, attackTargets, myState);
+      mapRenderer.render(gameState, selectedPieceId, legalMovesCp0, legalMovesCp1, attackTargets, myState);
     }
   });
+}
+
+// ---------------------------------------------------------------------------
+// Solo mode helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * ソロモード: 現在アクティブな接続（controlToken.holderの接続）を返す。
+ */
+function getActiveConn() {
+  if (isSoloMode && soloConnections) {
+    const side = gameState?.controlToken?.holder || 'france';
+    return soloConnections[side] || soloConnections.france;
+  }
+  return connection;
+}
+
+/**
+ * 指定サイドの接続を返す（インタラプション応答用）。
+ */
+function getConnForSide(side) {
+  if (isSoloMode && soloConnections) {
+    return soloConnections[side] || soloConnections.france;
+  }
+  return connection;
+}
+
+/**
+ * ソロモードインジケーターを更新する。
+ */
+function updateSoloIndicator() {
+  if (!soloIndicatorEl) return;
+  if (!isSoloMode) {
+    soloIndicatorEl.style.display = 'none';
+    return;
+  }
+  soloIndicatorEl.style.display = '';
+  if (soloActiveSideEl) {
+    const side = myState.side;
+    soloActiveSideEl.textContent = side === 'france' ? 'フランス(仏)' : 'オーストリア(墺)';
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -200,10 +258,11 @@ function applyState(newState) {
 
   // Flush log entries
   if (gameState.log && Array.isArray(gameState.log)) {
-    // Add only new entries (server sends full log; show last added)
-    // For simplicity, show only the last entry if present
     const last = gameState.log[gameState.log.length - 1];
-    if (last) infoPanel.addLog(last);
+    if (last) {
+      const text = typeof last === 'string' ? last : `[R${last.round} ${last.time}] ${last.message}`;
+      infoPanel.addLog(text);
+    }
   }
 
   // Update off-map panel
@@ -221,26 +280,40 @@ function applyState(newState) {
  * @param {string} pieceId
  */
 function handleEntryAction(pieceId) {
-  if (!connection) return;
-  connection.sendAction({ type: 'ENTER_MAP', pieceId });
+  const conn = getActiveConn();
+  if (!conn) return;
+  conn.sendAction({ type: 'ENTER_MAP', pieceId });
 }
 
 /**
  * Handle an interruption from the server.
  */
 function showInterruption(interruptionType, options, waitingFor) {
-  if (waitingFor === myState.side) {
-    // It's our turn to respond
+  if (isSpectatorMode) {
+    // 観戦者: ログ表示のみ、UI不要（サーバーはINTERRUPTIONを送らないが念のため）
+    const label = waitingFor === 'france' ? 'フランス(仏)' : 'オーストリア(墺)';
+    infoPanel.addLog(`インタラプション: ${interruptionType} — ${label}応答待ち`);
+    infoPanel.updateHeader(gameState, myState.side);
+    scheduleRender();
+    return;
+  }
+
+  if (isSoloMode || waitingFor === myState.side) {
+    // ソロモード: 常にUI表示。waitingForの接続で応答を送る
+    if (isSoloMode) {
+      myState.side = waitingFor; // 応答する側に切り替え
+      updateSoloIndicator();
+    }
     actionPanel.setInterruptionMode(
       interruptionType,
       options,
       gameState,
       (response) => {
-        connection.sendResponse(response);
+        getConnForSide(waitingFor).sendResponse(response);
       }
     );
   } else {
-    // Waiting for the other player — show info only
+    // 相手の応答待ち
     infoPanel.addLog(`応答待ち: ${interruptionType} (相手)`);
   }
   infoPanel.updateHeader(gameState, myState.side);
@@ -252,7 +325,8 @@ function showInterruption(interruptionType, options, waitingFor) {
 // ---------------------------------------------------------------------------
 
 function handleAction(action) {
-  if (!connection) return;
+  const conn = getActiveConn();
+  if (!conn) return;
 
   // 再編成: ダイアログを表示して駒選択
   if (action.type === 'reorganize') {
@@ -274,11 +348,11 @@ function handleAction(action) {
       gameState,
       mapData,
       (pieceIds) => {
-        connection.sendAction({ type: 'reorganize', pieceIds, localeId: reorgAction.localeId });
-        clearSelection(); // 再編成後はニュートラルに戻す（誤移動防止）
+        conn.sendAction({ type: 'reorganize', pieceIds, localeId: reorgAction.localeId });
+        clearSelection();
       },
       () => {
-        refreshActionPanel(); // キャンセル → 元に戻す
+        refreshActionPanel();
       }
     );
     return;
@@ -286,7 +360,39 @@ function handleAction(action) {
 
   // 行軍アクション: 目的地クリックが必要
   if (action._mapSelect) {
+    const piece = selectedPieceId ? gameState.pieces[selectedPieceId] : null;
+    const approachActions = piece ? serverLegalActions.filter(a =>
+      a.pieceId === selectedPieceId &&
+      a.to && a.to.localeId === piece.localeId &&
+      a.to.position && a.to.position.startsWith('approach_')
+    ) : [];
+
+    if (approachActions.length > 0) {
+      actionPanel.showApproachDialog(approachActions, piece.localeId, mapData,
+        (act) => { conn.sendAction({ ...act }); clearSelection(); },
+        () => refreshActionPanel()
+      );
+      return;
+    }
+
     infoPanel.addLog('移動先をマップ上でクリックしてください');
+    return;
+  }
+
+  // 攻撃アクション
+  if (['raid', 'assault', 'bombardment_declare'].includes(action.type)) {
+    const candidates = serverLegalActions.filter(
+      a => a.type === action.type && a.pieceId === selectedPieceId
+    );
+    if (candidates.length === 0) {
+      infoPanel.addLog('このアクションは現在実行できません');
+      return;
+    }
+    if (candidates.length === 1) {
+      conn.sendAction(candidates[0]);
+      return;
+    }
+    infoPanel.addLog('攻撃対象をマップ上でクリックしてください');
     return;
   }
 
@@ -294,25 +400,34 @@ function handleAction(action) {
   if (selectedPieceId && !action.pieceId) {
     action.pieceId = selectedPieceId;
   }
-  connection.sendAction(action);
+  conn.sendAction(action);
 }
 
 function handleTurnEnd() {
-  if (!connection) return;
-  connection.sendAction({ type: 'end_turn' });
+  const conn = getActiveConn();
+  if (!conn) return;
+  conn.sendAction({ type: 'end_turn' });
 }
 
 function refreshActionPanel() {
   if (!gameState) return;
-  const isMyTurn = gameState.controlToken &&
-                   gameState.controlToken.holder === myState.side &&
-                   !gameState.pendingInterruption;
+
+  // 観戦者: 操作不可メッセージ
+  if (isSpectatorMode) {
+    actionPanel.showSpectatorMessage();
+    return;
+  }
+
+  const isMyTurn = isSoloMode
+    ? !gameState.pendingInterruption  // ソロ: インタラプションなければ常に手番
+    : gameState.controlToken &&
+      gameState.controlToken.holder === myState.side &&
+      !gameState.pendingInterruption;
 
   // Use server-authoritative legal actions for selected piece when available
   const legalActions = selectedPieceId && serverLegalActions.length
     ? serverLegalActions.filter(a => {
         if (a.pieceId === selectedPieceId) return true;
-        // 再編成アクションは pieceId がなく localeId で判定
         if (a.type === 'reorganize') {
           const piece = gameState.pieces[selectedPieceId];
           return piece && a.localeId === piece.localeId;
@@ -339,8 +454,8 @@ function computeLegalActionsForPiece(pieceId, state) {
   const piece = state.pieces[pieceId];
   if (!piece) return [];
 
-  // Only own pieces
-  if (piece.side !== myState.side) return [];
+  // 観戦者・ソロ以外は自駒のみ
+  if (!isSoloMode && !isSpectatorMode && piece.side !== myState.side) return [];
 
   const actions = [];
 
@@ -386,7 +501,8 @@ function handleCanvasClick(sx, sy) {
 
 function clearSelection() {
   selectedPieceId = null;
-  legalMoves = [];
+  legalMovesCp0 = [];
+  legalMovesCp1 = [];
   attackTargets = [];
   refreshActionPanel();
   scheduleRender();
@@ -394,7 +510,8 @@ function clearSelection() {
 
 function selectPiece(pid) {
   selectedPieceId = pid;
-  legalMoves = [];
+  legalMovesCp0 = [];
+  legalMovesCp1 = [];
   attackTargets = [];
   updateLegalHighlights();
   refreshActionPanel();
@@ -402,17 +519,17 @@ function selectPiece(pid) {
 }
 
 /**
- * Populate legalMoves / attackTargets from serverLegalActions for the selected piece.
+ * Populate legalMovesCp0 / legalMovesCp1 / attackTargets from serverLegalActions for the selected piece.
  */
 function updateLegalHighlights() {
-  legalMoves = [];
+  legalMovesCp0 = [];
+  legalMovesCp1 = [];
   attackTargets = [];
   if (!selectedPieceId || !serverLegalActions.length) return;
 
   for (const action of serverLegalActions) {
     if (action.pieceId !== selectedPieceId) continue;
 
-    // Attack actions use different field names for target locale
     if (action.type === 'raid' || action.type === 'bombardment_declare') {
       const dest = action.targetLocaleId;
       if (dest != null && !attackTargets.includes(dest)) attackTargets.push(dest);
@@ -420,22 +537,27 @@ function updateLegalHighlights() {
       const dest = action.defenseLocaleId;
       if (dest != null && !attackTargets.includes(dest)) attackTargets.push(dest);
     } else if (action.to && action.to.localeId != null) {
-      // March / continuation actions
       const dest = action.to.localeId;
-      if (!legalMoves.includes(dest)) legalMoves.push(dest);
+      const cost = action.commandCost ?? 1;
+      if (cost === 0) {
+        if (!legalMovesCp0.includes(dest)) legalMovesCp0.push(dest);
+      } else {
+        if (!legalMovesCp0.includes(dest) && !legalMovesCp1.includes(dest)) legalMovesCp1.push(dest);
+      }
     }
   }
 }
 
 function handleLocaleClick(localeIdx) {
-  if (selectedPieceId) {
-    // 行軍系アクション（to.localeId が一致するもの）
+  const conn = getActiveConn();
+
+  if (selectedPieceId && conn) {
+    // 行軍系アクション
     const marchActions = serverLegalActions.filter(a =>
       a.pieceId === selectedPieceId && a.to && a.to.localeId === localeIdx
     );
 
     if (marchActions.length > 0) {
-      // 移動確認ダイアログを表示
       const piece = gameState.pieces[selectedPieceId];
       actionPanel.showMoveConfirmDialog(
         marchActions,
@@ -443,7 +565,7 @@ function handleLocaleClick(localeIdx) {
         localeIdx,
         mapData,
         (action) => {
-          connection.sendAction({ ...action });
+          conn.sendAction({ ...action });
           clearSelection();
         },
         () => refreshActionPanel()
@@ -451,7 +573,7 @@ function handleLocaleClick(localeIdx) {
       return;
     }
 
-    // 攻撃系アクション（即時実行）
+    // 攻撃系アクション
     const attackAction = serverLegalActions.find(a => {
       if (a.pieceId !== selectedPieceId) return false;
       if ((a.type === 'raid' || a.type === 'bombardment_declare') && a.targetLocaleId === localeIdx) return true;
@@ -459,18 +581,22 @@ function handleLocaleClick(localeIdx) {
       return false;
     });
     if (attackAction) {
-      connection.sendAction({ ...attackAction });
+      conn.sendAction({ ...attackAction });
       clearSelection();
       scheduleRender();
       return;
     }
   }
 
-  // エリアクリック: そのロケールに自軍駒があれば選択してアクションパネルを更新
-  if (gameState && myState.side) {
-    const pieceInLocale = Object.values(gameState.pieces).find(
-      p => p.localeId === localeIdx && p.side === myState.side && p.strength > 0
-    );
+  // エリアクリック: 駒選択
+  // ソロ・観戦者は両軍の駒を選択可能
+  if (gameState) {
+    const canSelectBothSides = isSoloMode || isSpectatorMode;
+    const pieceInLocale = Object.values(gameState.pieces).find(p => {
+      if (p.localeId !== localeIdx || p.strength <= 0) return false;
+      if (canSelectBothSides) return true;
+      return myState.side && p.side === myState.side;
+    });
     if (pieceInLocale) {
       selectPiece(pieceInLocale.id);
       return;
@@ -494,12 +620,24 @@ function handleConnect() {
     return;
   }
 
-  myState = { side, gameId };
+  isSoloMode      = (side === 'solo');
+  isSpectatorMode = (side === 'spectator');
 
   // Update savePanel with the new gameId
-  if (savePanel) {
-    savePanel.gameId = gameId;
+  if (savePanel) savePanel.gameId = gameId;
+
+  if (isSoloMode) {
+    _connectSolo(gameId);
+  } else {
+    _connectSingle(gameId, side);
   }
+}
+
+/**
+ * 通常接続（france / austria / spectator）
+ */
+function _connectSingle(gameId, side) {
+  myState = { side, gameId };
 
   connection = new Connection(gameId, side, {
     onJoined(s, gId, gs) {
@@ -508,7 +646,8 @@ function handleConnect() {
       if (savePanel) savePanel.gameId = gId;
       connectModal.classList.add('hidden');
       applyState(gs);
-      infoPanel.addLog(`ゲームに参加しました (${s === 'france' ? 'フランス' : 'オーストリア'})`);
+      const label = s === 'france' ? 'フランス' : s === 'austria' ? 'オーストリア' : '観戦';
+      infoPanel.addLog(`ゲームに参加しました (${label})`);
     },
 
     onState(gs, la) {
@@ -528,12 +667,19 @@ function handleConnect() {
       }
       infoPanel.updateHeader(gameState, myState.side);
       refreshActionPanel();
-      const holderLabel = holder === myState.side ? 'あなた' : '相手';
-      infoPanel.addLog(`制御権: ${holderLabel} (${reason})`);
+      if (!isSpectatorMode) {
+        const holderLabel = holder === myState.side ? 'あなた' : '相手';
+        infoPanel.addLog(`制御権: ${holderLabel} (${reason})`);
+      } else {
+        const label = holder === 'france' ? 'フランス' : 'オーストリア';
+        infoPanel.addLog(`制御権: ${label} (${reason})`);
+      }
     },
 
     onGameOver(winner, reason) {
-      const label = winner === myState.side ? 'あなたの勝利！' : '相手の勝利';
+      const label = isSpectatorMode
+        ? (winner === 'france' ? 'フランス勝利' : 'オーストリア勝利')
+        : (winner === myState.side ? 'あなたの勝利！' : '相手の勝利');
       infoPanel.addLog(`ゲーム終了: ${label} — ${reason}`);
       if (actionPanel) {
         const el = document.getElementById('actionPanel');
@@ -554,6 +700,103 @@ function handleConnect() {
   });
 
   connection.connect();
+}
+
+/**
+ * ソロモード接続（france + austria の2本のWS接続）
+ */
+function _connectSolo(gameId) {
+  myState = { side: 'france', gameId };
+  let joinedCount = 0;
+
+  /**
+   * 各サイド用ハンドラを生成。
+   * - connSide: 'france' | 'austria'（このハンドラを持つ接続のサイド）
+   */
+  function makeHandlers(connSide) {
+    return {
+      onJoined(s, gId, gs) {
+        joinedCount++;
+        myState.gameId = gId;
+        // 初回接続完了でモーダルを閉じる
+        if (joinedCount === 1) {
+          connectModal.classList.add('hidden');
+          myState.side = gs.controlToken?.holder || 'france';
+          applyState(gs);
+          updateSoloIndicator();
+          infoPanel.addLog(`ソロモード: ${connSide}側 接続中...`);
+        } else {
+          infoPanel.addLog('ソロモード開始 — 両陣営が接続されました');
+        }
+        if (savePanel) savePanel.gameId = gId;
+      },
+
+      onState(gs, la) {
+        // legalActionsがある（= このサイドのターン）ときだけ表示を更新
+        if (la && la.length > 0) {
+          serverLegalActions = la;
+          myState.side = gs.controlToken?.holder || myState.side;
+          actionPanel.clearInterruptionMode();
+          applyState(gs);
+          updateLegalHighlights();
+          updateSoloIndicator();
+        } else if (gs.pendingInterruption) {
+          // インタラプション中: controlToken.holderがconnSideのときだけ更新
+          // （重複更新を避けるため一方のみ）
+          if (gs.controlToken?.holder === connSide) {
+            actionPanel.clearInterruptionMode();
+            applyState(gs);
+          }
+        }
+      },
+
+      onInterruption(type, options, waitingFor) {
+        // ソロモード: このconnSideがwaitingForの場合のみUIを表示
+        // （サーバーはwaitingFor側にしかINTERRUPTIONを送らない）
+        showInterruption(type, options, waitingFor);
+      },
+
+      onControlTransfer(holder, reason) {
+        if (gameState) gameState = { ...gameState, controlToken: { holder, reason } };
+        // フランス側ハンドラのみログ出力（重複防止）
+        if (connSide === 'france') {
+          myState.side = holder;
+          updateSoloIndicator();
+          infoPanel.updateHeader(gameState, myState.side);
+          refreshActionPanel();
+          const label = holder === 'france' ? 'フランス' : 'オーストリア';
+          infoPanel.addLog(`制御権: ${label} (${reason})`);
+        }
+      },
+
+      onGameOver(winner, reason) {
+        if (connSide === 'france') { // 重複防止
+          const label = winner === 'france' ? 'フランス勝利' : 'オーストリア勝利';
+          infoPanel.addLog(`ゲーム終了: ${label} — ${reason}`);
+          const el = document.getElementById('actionPanel');
+          if (el) {
+            el.innerHTML = `<div style="color:#4ecca3;padding:12px;font-size:14px;font-weight:bold;">
+              ゲーム終了<br>${label}
+            </div>`;
+          }
+        }
+      },
+
+      onError(code, message) {
+        infoPanel.addLog(`エラー[${connSide}][${code}]: ${message}`);
+        if (connectModal && !connectModal.classList.contains('hidden')) {
+          connectError.textContent = message;
+        }
+      },
+    };
+  }
+
+  const franceConn  = new Connection(gameId, 'france',  makeHandlers('france'));
+  const austriaConn = new Connection(gameId, 'austria', makeHandlers('austria'));
+  soloConnections = { france: franceConn, austria: austriaConn };
+
+  franceConn.connect();
+  austriaConn.connect();
 }
 
 // ---------------------------------------------------------------------------

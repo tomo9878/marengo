@@ -85,7 +85,7 @@ const areas = v4.areas.map(srcArea => {
     historicalName:  prev.historicalName ?? null,
     color:           srcArea.color,
     capacity:        prev.capacity        ?? srcArea.capacity ?? null,
-    eastOfObjective: prev.eastOfObjective ?? null,
+    eastOfObjective: prev.eastOfObjective ?? srcArea.eastOfObjective ?? null,
     setupZone:       prev.setupZone       ?? null,
     terrain:         srcArea.terrain ?? '',
     mp_cost:         srcArea.mp_cost ?? 1,

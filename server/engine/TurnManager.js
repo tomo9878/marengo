@@ -85,6 +85,11 @@ function applyApproachCleanup(state) {
  * @returns {{ newState: GameState, interruption: object | null }}
  */
 function executeAction(action, state) {
+  // #12: シャッフルは制御権に関係なくいつでも実行可能
+  if (action.type === 'shuffle') {
+    return executeShuffle(action, state);
+  }
+
   // バリデーション: アクティブプレイヤーのみ
   if (state.controlToken.holder !== state.activePlayer) {
     throw new Error('Not active player turn');
@@ -113,6 +118,9 @@ function executeAction(action, state) {
     case 'bombardment_declare':
       return executeBombardmentDeclare(action, state);
 
+    case 'bombardment_cancel':
+      return executeBombardmentCancel(action, state);
+
     case 'bombardment_complete':
       return executeBombardmentComplete(action, state);
 
@@ -124,6 +132,22 @@ function executeAction(action, state) {
 
     case 'end_turn': {
       const afterPhase = endActionPhase(state);
+
+      // フランス特権: ラウンド11未満なら1トークン回収を選択できる
+      if (state.activePlayer === SIDES.FRANCE && state.round < 11) {
+        const recoverableTokens = morale.getRecoverableTokens(afterPhase);
+        if (recoverableTokens.length > 0) {
+          const interruption = {
+            type: INTERRUPTION.FRANCE_MORALE_RECOVERY,
+            waitingFor: SIDES.FRANCE,
+            context: { recoverableTokens },
+          };
+          afterPhase.pendingInterruption = interruption;
+          afterPhase.controlToken = { holder: SIDES.FRANCE, reason: INTERRUPTION.FRANCE_MORALE_RECOVERY };
+          return { newState: afterPhase, interruption };
+        }
+      }
+
       const newState = startPlayerTurn(afterPhase);
       return { newState, interruption: null };
     }
@@ -134,9 +158,79 @@ function executeAction(action, state) {
 }
 
 /**
+ * 道路行軍急襲の実行。
+ * 騎兵が道路行軍中に敵占拠ロケールへ急襲するケース。
+ * CPは道路行軍分のみ消費、急襲CP3は消費しない。
+ * 勝利時はactedPieceIdsに追加しない（継続行軍可能）。
+ */
+function executeMarchRaid(action, state) {
+  let next = cloneState(state);
+  const piece = next.pieces[action.pieceId];
+  if (!piece) throw new Error(`Piece not found: ${action.pieceId}`);
+
+  // 道路行軍のCP消費（急襲CP3は消費しない）
+  next.commandPoints -= action.commandCost ?? 0;
+
+  // 横断交通制限を記録（急襲横断含む全横断）
+  for (const { canonicalEdgeId, direction, step } of action.crossingPath ?? []) {
+    if (!next.crossingTraffic[canonicalEdgeId]) next.crossingTraffic[canonicalEdgeId] = [];
+    next.crossingTraffic[canonicalEdgeId].push({ pieceId: action.pieceId, steps: step, direction });
+  }
+
+  // 急襲横断を使用済みとして記録（同一横断2回使用禁止）
+  if (action.raidCrossingId) {
+    next.roadMarchRaidCrossings = [...(next.roadMarchRaidCrossings ?? []), action.raidCrossingId];
+  }
+
+  // actedPieceIdsには追加しない（急襲勝利時は継続行軍可能のため）
+  // 急襲敗北時はprocessDefenseResponseで追加する
+
+  const defSide = piece.side === SIDES.FRANCE ? SIDES.AUSTRIA : SIDES.FRANCE;
+  const defLocale = action.raidTargetLocaleId;
+
+  const franceCanBlockThisRound = !(next.round === 1 && defSide === SIDES.FRANCE);
+  const defenderReserve = franceCanBlockThisRound
+    ? Object.values(next.pieces).filter(
+        p => p.localeId === defLocale && p.side === defSide && p.position === 'reserve' && p.strength > 0
+      )
+    : [];
+
+  const raidHistory = next.raidHistoryThisTurn ?? [];
+  const isFirstRaidThroughApproach = !raidHistory.some(
+    r => r.localeId === defLocale && r.edgeIdx === action.raidDefenseEdgeIdx
+  );
+  next.raidHistoryThisTurn = [...raidHistory, { localeId: defLocale, edgeIdx: action.raidDefenseEdgeIdx }];
+
+  const interruption = {
+    type: INTERRUPTION.DEFENSE_RESPONSE,
+    waitingFor: defSide,
+    context: {
+      attackerPieceIds:        [action.pieceId],
+      targetLocaleId:          defLocale,
+      defenseEdgeIdx:          action.raidDefenseEdgeIdx,
+      availableDefenders:      defenderReserve.map(p => p.id),
+      maxResponse:             1,
+      isFirstRaidThroughApproach,
+      isRoadMarchRaid:         true,
+      pieceStartLocaleId:      piece.localeId,
+    },
+  };
+
+  next.pendingInterruption = interruption;
+  next.controlToken = { holder: defSide, reason: INTERRUPTION.DEFENSE_RESPONSE };
+
+  return { newState: next, interruption };
+}
+
+/**
  * 行軍アクションの実行。
  */
 function executeMarch(action, state) {
+  // 道路行軍急襲は専用関数へ委譲
+  if (action.type === 'road_march' && action.raidTargetLocaleId) {
+    return executeMarchRaid(action, state);
+  }
+
   let next = cloneState(state);
   const piece = next.pieces[action.pieceId];
   if (!piece) throw new Error(`Piece not found: ${action.pieceId}`);
@@ -151,6 +245,11 @@ function executeMarch(action, state) {
     actedThisTurn: true,
   };
 
+  // ロケール占拠履歴を更新（ロケール移動のみ）
+  if (destLocaleId !== piece.localeId && destLocaleId !== null) {
+    next.localeLastOccupant = { ...(next.localeLastOccupant ?? {}), [destLocaleId]: piece.side };
+  }
+
   // Section 14: 混乱ルール — 整列駒が混乱駒のいるロケールへ入ると全員混乱
   if (!piece.disordered) {
     const disorderedInDest = Object.values(next.pieces).some(
@@ -164,6 +263,19 @@ function executeMarch(action, state) {
           next.pieces[pid] = { ...p, disordered: true };
         }
       }
+    }
+  }
+
+  // #11: 砲撃自動取り消し — 砲兵が宣言したアプローチを離れた場合
+  if (next.pendingBombardment?.artilleryId === action.pieceId) {
+    // 元の位置（action実行前）が宣言アプローチで、移動後は別の場所になる場合に取り消し
+    const origPosition = piece.position;
+    const origLocale   = piece.localeId;
+    const destPosition = action.to.position;
+    const destLocale   = action.to.localeId;
+    if (origPosition !== destPosition || origLocale !== destLocale) {
+      next.pendingBombardment = null;
+      next.pieces[action.pieceId] = { ...next.pieces[action.pieceId], faceUp: false };
     }
   }
 
@@ -206,9 +318,21 @@ function initiateRaid(action, state) {
   const defSide = piece.side === SIDES.FRANCE ? SIDES.AUSTRIA : SIDES.FRANCE;
   const defLocale = action.targetLocaleId;
 
-  const defenderReserve = Object.values(next.pieces).filter(
-    p => p.localeId === defLocale && p.side === defSide && p.position === 'reserve' && p.strength > 0
+  // ラウンド1はフランス軍混乱のためブロック不可（いかなる場合も）
+  const franceCanBlockThisRound = !(next.round === 1 && defSide === SIDES.FRANCE);
+  const defenderReserve = franceCanBlockThisRound
+    ? Object.values(next.pieces).filter(
+        p => p.localeId === defLocale && p.side === defSide && p.position === 'reserve' && p.strength > 0
+      )
+    : [];
+
+  // 「最初の急襲」チェック: このターンこのアプローチを通過した最初の急襲か
+  const raidHistory = next.raidHistoryThisTurn ?? [];
+  const isFirstRaidThroughApproach = !raidHistory.some(
+    r => r.localeId === defLocale && r.edgeIdx === action.defenseEdgeIdx
   );
+  // このアプローチを急襲履歴に追加
+  next.raidHistoryThisTurn = [...raidHistory, { localeId: defLocale, edgeIdx: action.defenseEdgeIdx }];
 
   // インタラプション生成
   const interruption = {
@@ -220,6 +344,7 @@ function initiateRaid(action, state) {
       defenseEdgeIdx: action.defenseEdgeIdx,
       availableDefenders: defenderReserve.map(p => p.id),
       maxResponse: attackerPieceIds.length,
+      isFirstRaidThroughApproach,
     },
   };
 
@@ -293,6 +418,65 @@ function executeBombardmentDeclare(action, state) {
     defenseApproachIdx: action.fromEdgeIdx,
     declaredRound: next.round,
   };
+
+  return { newState: next, interruption: null };
+}
+
+/**
+ * 砲撃宣言の取り消し（#11）。
+ * コスト・ペナルティなし。砲兵を裏向きに戻す。
+ */
+function executeBombardmentCancel(action, state) {
+  let next = cloneState(state);
+
+  const bombInfo = next.pendingBombardment;
+  if (!bombInfo || bombInfo.artilleryId !== action.pieceId) {
+    throw new Error('取り消し対象の砲撃宣言がありません');
+  }
+
+  next.pendingBombardment = null;
+  next.pieces[action.pieceId] = { ...next.pieces[action.pieceId], faceUp: false };
+  next = addLog(next, `砲兵 ${action.pieceId} の砲撃宣言を取り消し`);
+
+  return { newState: next, interruption: null };
+}
+
+/**
+ * 駒のシャッフル（#12）。
+ * 制御権に関係なくいつでも実行可能。
+ * 同じロケール・ポジションの複数の駒の順序を入れ替える（状態変化なし、バリデーションのみ）。
+ */
+function executeShuffle(action, state) {
+  const { pieceIds, side } = action;
+  if (!pieceIds || pieceIds.length < 2) {
+    throw new Error('シャッフルには2つ以上の駒が必要です');
+  }
+
+  let next = cloneState(state);
+  const pieces = pieceIds.map(id => {
+    const p = next.pieces[id];
+    if (!p) throw new Error(`駒が見つかりません: ${id}`);
+    return p;
+  });
+
+  // シャッフルを実施するプレイヤーの駒であること
+  if (side && !pieces.every(p => p.side === side)) {
+    throw new Error('他の陣営の駒はシャッフルできません');
+  }
+
+  // 全駒が同じロケールとポジションにいること
+  const { localeId, position } = pieces[0];
+  if (!pieces.every(p => p.localeId === localeId && p.position === position)) {
+    throw new Error('シャッフルは同じロケール・ポジションの駒のみ可能です');
+  }
+
+  // 済/未アクション駒の混在不可
+  const actedCount = pieces.filter(p => state.actedPieceIds.has(p.id)).length;
+  if (actedCount > 0 && actedCount < pieces.length) {
+    throw new Error('アクション済み駒と未アクション駒を混在させてシャッフルすることはできません');
+  }
+
+  next = addLog(next, `駒 ${pieceIds.join(', ')} をシャッフル（ロケール: ${localeId}, ポジション: ${position}）`);
 
   return { newState: next, interruption: null };
 }
@@ -416,11 +600,25 @@ function executeEnterMap(action, state) {
     faceUp: false,
   };
 
+  // ロケール占拠履歴を更新
+  next.localeLastOccupant = { ...(next.localeLastOccupant ?? {}), [BORMIDA_ENTRY_LOCALE_IDX]: piece.side };
+
   // 入場済み駒として記録
   next.actedPieceIds.add(action.pieceId);
 
   // 入場カウントを更新
   next.entriesThisTurn = entriesThisTurn + 1;
+
+  // #10: 増援進入時の交通制限を記録
+  const { BORMIDA_ENTRY_CROSSING_ID, BORMIDA_ENTRY_DIRECTION } = validator;
+  if (!next.crossingTraffic[BORMIDA_ENTRY_CROSSING_ID]) {
+    next.crossingTraffic[BORMIDA_ENTRY_CROSSING_ID] = [];
+  }
+  next.crossingTraffic[BORMIDA_ENTRY_CROSSING_ID].push({
+    pieceId: action.pieceId,
+    steps: entriesThisTurn + 1,
+    direction: BORMIDA_ENTRY_DIRECTION,
+  });
 
   // ログ追加
   next = addLog(next, `オーストリア駒 ${action.pieceId} がボルミダ川よりマップに入場 (コスト: ${cost}CP)`);
@@ -467,6 +665,15 @@ function processInterruption(response, state) {
     case INTERRUPTION.RETREAT_DESTINATION:
       return processRetreatDestination(response, state);
 
+    case INTERRUPTION.ATTACKER_APPROACH:
+      return processAttackerApproach(response, state);
+
+    case INTERRUPTION.MORALE_TOKEN_REMOVAL:
+      return processMoraleTokenRemoval(response, state);
+
+    case INTERRUPTION.FRANCE_MORALE_RECOVERY:
+      return processFranceMoraleRecovery(response, state);
+
     default:
       throw new Error(`Unknown interruption type: ${intType}`);
   }
@@ -499,6 +706,7 @@ function processDefenseResponse(response, state) {
       targetLocaleId: ctx.targetLocaleId,
       defenseEdgeIdx: ctx.defenseEdgeIdx,
       defenseResponsePieceIds: responseIds,
+      isFirstRaidThroughApproach: ctx.isFirstRaidThroughApproach ?? true,
     },
     next
   );
@@ -510,9 +718,66 @@ function processDefenseResponse(response, state) {
     const defSide = next.controlToken.holder;
     const atkSide = defSide === SIDES.FRANCE ? SIDES.AUSTRIA : SIDES.FRANCE;
     next = morale.investMorale(atkSide, ctx.targetLocaleId, result.moraleInvestment, next);
+
+    // 道路行軍急襲の場合: 騎兵をfaceUp、actedPieceIdsに追加して行軍終了
+    if (ctx.isRoadMarchRaid) {
+      for (const pid of ctx.attackerPieceIds) {
+        const p = next.pieces[pid];
+        if (p) next.pieces[pid] = { ...p, faceUp: true };
+        next.actedPieceIds.add(pid);
+      }
+      return { newState: next, interruption: null };
+    }
+
+    // 攻撃側がリザーブから攻撃した場合、アプローチへの移動オプション
+    const attackFromReserve = ctx.attackerPieceIds.some(
+      pid => next.pieces[pid] && next.pieces[pid].position === 'reserve'
+    );
+    if (attackFromReserve) {
+      // 攻撃側アプローチ: 攻撃者ロケール側のエッジを特定
+      const firstAtkPiece = next.pieces[ctx.attackerPieceIds[0]];
+      const atkLocale = firstAtkPiece ? firstAtkPiece.localeId : null;
+      const atkEdge = atkLocale != null
+        ? map.getOppositeApproach(ctx.targetLocaleId, ctx.defenseEdgeIdx)
+        : null;
+
+      if (atkEdge && atkEdge.localeIdx === atkLocale) {
+        const approachInterruption = {
+          type: INTERRUPTION.ATTACKER_APPROACH,
+          waitingFor: atkSide,
+          context: {
+            attackerPieceIds: ctx.attackerPieceIds.filter(
+              pid => next.pieces[pid] && next.pieces[pid].position === 'reserve'
+            ),
+            attackLocaleId: atkLocale,
+            attackEdgeIdx: atkEdge.edgeIdx,
+          },
+        };
+        next.pendingInterruption = approachInterruption;
+        next.controlToken = { holder: atkSide, reason: INTERRUPTION.ATTACKER_APPROACH };
+        return { newState: next, interruption: approachInterruption };
+      }
+    }
+
     return { newState: next, interruption: null };
   } else {
-    // 攻撃側勝ち: 退却インタラプション
+    // 攻撃側勝ち: 攻撃側駒が targetLocale へ移動（resolveRaid 内で処理済み）
+    // ロケール占拠履歴を更新
+    const atkSide2 = next.controlToken.holder;
+    next.localeLastOccupant = {
+      ...(next.localeLastOccupant ?? {}),
+      [ctx.targetLocaleId]: atkSide2,
+    };
+
+    // 道路行軍急襲の場合: 騎兵をfaceUp（actedPieceIdsには追加しない→継続行軍可能）
+    if (ctx.isRoadMarchRaid) {
+      for (const pid of ctx.attackerPieceIds) {
+        const p = next.pieces[pid];
+        if (p) next.pieces[pid] = { ...p, faceUp: true };
+      }
+    }
+
+    // 退却インタラプション
     const retreatInterruption = {
       type: INTERRUPTION.RETREAT_DESTINATION,
       waitingFor: result.retreatInfo.losingside,
@@ -537,7 +802,11 @@ function processAssaultDefLeaders(response, state) {
   const ctx = state.pendingInterruption.context;
   let next = cloneState(state);
 
-  const defLeaderIds = response.leaderIds ?? [];
+  let defLeaderIds = response.leaderIds ?? [];
+  // cav_impassable: 騎兵は防御先導駒に選択不可
+  if (map.isCavalryImpassable(ctx.defenseLocaleId, ctx.defenseEdgeIdx)) {
+    defLeaderIds = defLeaderIds.filter(id => next.pieces[id]?.type !== 'cavalry');
+  }
   const updatedCtx = { ...ctx, defLeaderIds };
 
   // 次: 攻撃先導駒の選択
@@ -560,7 +829,11 @@ function processAssaultAtkLeaders(response, state) {
   const ctx = state.pendingInterruption.context;
   let next = cloneState(state);
 
-  const atkLeaderIds = response.leaderIds ?? [];
+  let atkLeaderIds = response.leaderIds ?? [];
+  // cav_impassable: 騎兵は攻撃先導駒に選択不可
+  if (map.isCavalryImpassable(ctx.defenseLocaleId, ctx.defenseEdgeIdx)) {
+    atkLeaderIds = atkLeaderIds.filter(id => next.pieces[id]?.type !== 'cavalry');
+  }
   const updatedCtx = { ...ctx, atkLeaderIds };
 
   // 次: 防御砲撃（条件チェック）
@@ -639,7 +912,11 @@ function processAssaultCounter(response, state) {
   const ctx = state.pendingInterruption.context;
   let next = cloneState(state);
 
-  const counterIds = response.counterIds ?? [];
+  let counterIds = response.counterIds ?? [];
+  // cav_impassable: 騎兵はカウンター駒に選択不可
+  if (map.isCavalryImpassable(ctx.defenseLocaleId, ctx.defenseEdgeIdx)) {
+    counterIds = counterIds.filter(id => next.pieces[id]?.type !== 'cavalry');
+  }
 
   // カウンター: 攻撃先導駒を (counterIds の数) だけ減少
   const counterCount = counterIds.length;
@@ -664,6 +941,7 @@ function processAssaultCounter(response, state) {
       atkLeaderIds: updatedCtx.atkLeaderIds,
       defLeaderIds: updatedCtx.defLeaderIds,
       counterIds,
+      defenseLocaleId: updatedCtx.defenseLocaleId,
       defenseEdgeIdx: updatedCtx.defenseEdgeIdx,
       attackEdgeIdx: updatedCtx.attackEdgeIdx,
     },
@@ -733,6 +1011,34 @@ function processAssaultReductions(response, state) {
     if (defInvestCount > 0) {
       next = morale.investMorale(ctx.defSide, ctx.defenseLocaleId, defInvestCount, next);
     }
+    // 突撃勝利: 元の防御側ロケールへの道路行軍を同一ターン中禁止
+    next.roadMarchBlockedLocales = [
+      ...(next.roadMarchBlockedLocales ?? []),
+      ctx.defenseLocaleId,
+    ];
+    // ロケール占拠履歴を更新（攻撃側が防御側ロケールへ移動）
+    next.localeLastOccupant = {
+      ...(next.localeLastOccupant ?? {}),
+      [ctx.defenseLocaleId]: ctx.atkSide,
+    };
+  }
+
+  // 敗者の士気低下（勝者は除外: ルール Section 突撃）
+  if (ctx.atkWins) {
+    // 防御側が敗者 → defReductions 分だけ士気低下
+    if (ctx.defReductions > 0) {
+      next = morale.reduceMorale(ctx.defSide, ctx.defReductions, next);
+    }
+  } else {
+    // 攻撃側が敗者 → atkReductions 分だけ士気低下
+    if (ctx.atkReductions > 0) {
+      next = morale.reduceMorale(ctx.atkSide, ctx.atkReductions, next);
+    }
+    // 突撃敗北: 同一ターン中この攻撃アプローチを通じた攻撃・行軍を禁止
+    next.blockedApproachesAfterAssault = [
+      ...(next.blockedApproachesAfterAssault ?? []),
+      { localeId: ctx.attackLocaleId, edgeIdx: ctx.attackEdgeIdx },
+    ];
   }
 
   next.pendingInterruption = null;
@@ -752,7 +1058,7 @@ function processAssaultReductions(response, state) {
     return { newState: next, interruption: retreatInterruption };
   }
 
-  return { newState: next, interruption: null };
+  return _flushMoraleRemovals(next) ?? { newState: next, interruption: null };
 }
 
 /**
@@ -782,12 +1088,143 @@ function processBombardmentReduction(response, state) {
   next.pendingInterruption = null;
   next.controlToken = { holder: next.activePlayer, reason: 'active_player' };
 
-  return { newState: next, interruption: null };
+  return _flushMoraleRemovals(next) ?? { newState: next, interruption: null };
 }
 
 /**
  * 退却: 退却先選択処理。
  */
+/**
+ * 急襲後: 攻撃側アプローチ移動オプション処理。
+ * response: { moveToApproach: boolean[] または pieceIds: string[] }
+ */
+function processAttackerApproach(response, state) {
+  const ctx = state.pendingInterruption.context;
+  let next = cloneState(state);
+
+  next.pendingInterruption = null;
+  next.controlToken = { holder: next.activePlayer, reason: 'active_player' };
+
+  // 移動選択された駒をアプローチへ
+  const selectedIds = response.pieceIds ?? [];
+  for (const pid of selectedIds) {
+    const p = next.pieces[pid];
+    if (p && p.localeId === ctx.attackLocaleId && p.position === 'reserve') {
+      next.pieces[pid] = { ...p, position: `approach_${ctx.attackEdgeIdx}` };
+    }
+  }
+
+  return { newState: next, interruption: null };
+}
+
+// ---------------------------------------------------------------------------
+// 士気関連インタラプション処理
+// ---------------------------------------------------------------------------
+
+/**
+ * pendingMoraleRemovals の先頭があればインタラプションを生成して返す。
+ * なければ null を返す。
+ * @param {object} state
+ * @returns {{ newState, interruption } | null}
+ */
+function _flushMoraleRemovals(state) {
+  const removals = state.pendingMoraleRemovals;
+  if (!removals || removals.length === 0) return null;
+
+  const removal = removals[0];
+  const opponent = removal.side === SIDES.FRANCE ? SIDES.AUSTRIA : SIDES.FRANCE;
+  const availableTokens = state.moraleTokens
+    .filter(t => t.side === removal.side)
+    .map(t => t.localeId);
+
+  if (availableTokens.length === 0) {
+    // 除去するトークンがない（士気崩壊目前など） → スキップして次へ
+    const next = cloneState(state);
+    next.pendingMoraleRemovals = removals.slice(1);
+    return _flushMoraleRemovals(next);
+  }
+
+  const interruption = {
+    type: INTERRUPTION.MORALE_TOKEN_REMOVAL,
+    waitingFor: opponent,
+    context: { side: removal.side, amount: removal.amount, availableTokens },
+  };
+  const next = cloneState(state);
+  next.pendingInterruption = interruption;
+  next.controlToken = { holder: opponent, reason: INTERRUPTION.MORALE_TOKEN_REMOVAL };
+  return { newState: next, interruption };
+}
+
+/**
+ * 士気マップトークン除去: 相手プレイヤーが対象ロケールを選択。
+ * response: { localeIds: number[] }  - 除去するロケール（重複可）
+ */
+function processMoraleTokenRemoval(response, state) {
+  const ctx = state.pendingInterruption.context;
+  let next = cloneState(state);
+
+  // 選ばれたロケールからトークンを除去
+  const chosenLocaleIds = (response.localeIds || []).map(Number);
+  let toRemove = ctx.amount;
+
+  for (const localeId of chosenLocaleIds) {
+    if (toRemove <= 0) break;
+    const idx = next.moraleTokens.findIndex(t => t.side === ctx.side && t.localeId === localeId);
+    if (idx !== -1) {
+      next.moraleTokens.splice(idx, 1);
+      toRemove--;
+    }
+  }
+  // 不足分は先頭から自動除去
+  while (toRemove > 0) {
+    const idx = next.moraleTokens.findIndex(t => t.side === ctx.side);
+    if (idx === -1) break;
+    next.moraleTokens.splice(idx, 1);
+    toRemove--;
+  }
+
+  // この除去を pendingMoraleRemovals から取り除く
+  next.pendingMoraleRemovals = (next.pendingMoraleRemovals || []).slice(1);
+  next.pendingInterruption = null;
+  next.controlToken = { holder: next.activePlayer, reason: 'active_player' };
+
+  // 次の除去インタラプションがあれば連鎖
+  return _flushMoraleRemovals(next) ?? { newState: next, interruption: null };
+}
+
+/**
+ * フランス士気回収: フランスが1トークンをマップから未投入へ返還。
+ * response: { localeId: number | null }  - null = スキップ
+ */
+function processFranceMoraleRecovery(response, state) {
+  let next = cloneState(state);
+  next.pendingInterruption = null;
+
+  const chosenLocaleId = response.localeId !== undefined && response.localeId !== null
+    ? Number(response.localeId)
+    : null;
+
+  if (chosenLocaleId !== null) {
+    // 回収可能かチェック
+    const recoverable = morale.getRecoverableTokens(next);
+    const isValid = recoverable.some(r => r.localeId === chosenLocaleId);
+    if (isValid) {
+      const idx = next.moraleTokens.findIndex(
+        t => t.side === SIDES.FRANCE && t.localeId === chosenLocaleId
+      );
+      if (idx !== -1) {
+        next.moraleTokens.splice(idx, 1);
+        next.morale[SIDES.FRANCE].uncommitted++;
+      }
+    }
+  }
+  // localeId = null はスキップ
+
+  // 次のプレイヤーのターンへ進む
+  const newState = startPlayerTurn(next);
+  return { newState, interruption: null };
+}
+
 function processRetreatDestination(response, state) {
   const ctx = state.pendingInterruption.context;
   let next = cloneState(state);
@@ -801,12 +1238,25 @@ function processRetreatDestination(response, state) {
       losingLocaleId: ctx.losingLocaleId,
       attackInfo: ctx.attackInfo,
       reductionChoices,
-      destinations: response.destinations ?? {},
+      destinations: Object.fromEntries(
+        Object.entries(response.destinations ?? {}).map(([k, v]) => [k, v != null ? Number(v) : null])
+      ),
     },
     next
   );
 
   next = retreatResult.newState;
+
+  // ロケール占拠履歴を更新（退却先ロケール）
+  const dests = response.destinations ?? {};
+  for (const [, destLocaleId] of Object.entries(dests)) {
+    if (destLocaleId !== null && destLocaleId !== undefined) {
+      const p = Object.values(next.pieces).find(p2 => p2.localeId === destLocaleId);
+      if (p) {
+        next.localeLastOccupant = { ...(next.localeLastOccupant ?? {}), [destLocaleId]: p.side };
+      }
+    }
+  }
 
   // 士気投入（オーストリアが退却する場合）
   if (retreatResult.moraleInvestment > 0) {
@@ -827,7 +1277,7 @@ function processRetreatDestination(response, state) {
   next.pendingInterruption = null;
   next.controlToken = { holder: next.activePlayer, reason: 'active_player' };
 
-  return { newState: next, interruption: null };
+  return _flushMoraleRemovals(next) ?? { newState: next, interruption: null };
 }
 
 // ---------------------------------------------------------------------------
@@ -850,6 +1300,8 @@ function endActionPhase(state) {
   // プレイヤー切り替え
   if (next.activePlayer === SIDES.AUSTRIA) {
     // オーストリアが終わったのでフランスのターンへ
+    // このターン投入したトークン記録を「直前の相手ターン」として引き継ぐ（フランス回収ルール用）
+    next.moraleTokensPlacedByEnemyLastTurn = [...(next.moraleTokensPlacedThisTurn ?? [])];
     next.activePlayer = SIDES.FRANCE;
     next.controlToken = { holder: SIDES.FRANCE, reason: 'active_player' };
     next.phase = PHASES.MORALE_UPDATE;

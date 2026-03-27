@@ -73,7 +73,11 @@ function serveStatic(filePath, res) {
     }
     const ext = path.extname(resolved).toLowerCase();
     const mime = MIME_TYPES[ext] || 'application/octet-stream';
-    res.writeHead(200, { 'Content-Type': mime });
+    // JS/CSS ファイルはキャッシュしない（開発中）
+    const noCache = ext === '.js' || ext === '.css';
+    const headers = { 'Content-Type': mime };
+    if (noCache) headers['Cache-Control'] = 'no-store';
+    res.writeHead(200, headers);
     res.end(data);
   });
 }
@@ -204,8 +208,8 @@ wss.on('connection', (ws, req) => {
     return;
   }
 
-  if (side !== 'france' && side !== 'austria') {
-    ws.send(JSON.stringify({ type: 'ERROR', code: 'INVALID_SIDE', message: 'side must be france or austria' }));
+  if (side !== 'france' && side !== 'austria' && side !== 'spectator') {
+    ws.send(JSON.stringify({ type: 'ERROR', code: 'INVALID_SIDE', message: 'side must be france, austria, or spectator' }));
     ws.close();
     return;
   }
@@ -252,6 +256,39 @@ wss.on('connection', (ws, req) => {
 
   const { room, controller } = roomEntry;
 
+  // ── 観戦者ルート ──────────────────────────────────────────────────────────
+  if (side === 'spectator') {
+    const spectatorId = room.joinAsSpectator(ws);
+    const currentState = room.getState();
+    const spectatorState = sanitize(currentState, 'spectator');
+    ws.send(JSON.stringify({
+      type: 'JOINED',
+      side: 'spectator',
+      spectatorId,
+      gameId,
+      gameState: spectatorState,
+    }));
+    // Send current control token so the client can show whose turn it is
+    if (currentState && currentState.controlToken) {
+      ws.send(JSON.stringify({
+        type: 'CONTROL_TRANSFER',
+        holder: currentState.controlToken.holder,
+        reason: currentState.controlToken.reason,
+      }));
+    }
+    ws.on('message', (rawMessage) => {
+      controller.handleMessage(ws, rawMessage);
+    });
+    ws.on('close', () => {
+      room.disconnectSpectator(ws);
+    });
+    ws.on('error', (err) => {
+      console.error(`WebSocket error for spectator in game ${gameId}:`, err.message);
+    });
+    return;
+  }
+
+  // ── プレイヤールート（france / austria） ─────────────────────────────────
   // Join or reconnect
   if (isReconnect) {
     room.reconnect(ws, side);

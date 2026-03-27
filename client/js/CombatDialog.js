@@ -23,7 +23,7 @@ export default class CombatDialog {
     container.appendChild(title);
     container.appendChild(instr);
 
-    const eligible = options.eligiblePieceIds || [];
+    const eligible = options.availableDefenders || options.eligiblePieceIds || [];
     const checkboxes = [];
 
     for (const pid of eligible) {
@@ -304,25 +304,205 @@ export default class CombatDialog {
       const lbl = this._el('div', 'interruption-instruction', label + ':');
       container.appendChild(lbl);
 
+      if (!validDestinations || validDestinations.length === 0) {
+        // 退却先なし → 消滅扱い
+        const noDestEl = this._el('div', 'interruption-instruction',
+          '　退却先なし（消滅）');
+        noDestEl.style.color = '#e94560';
+        container.appendChild(noDestEl);
+        selections[pieceId] = null;
+        continue;
+      }
+
       const sel = document.createElement('select');
       sel.style.cssText = 'width:100%;padding:4px;background:#0a0f1e;border:1px solid #0f3460;color:#eee;border-radius:3px;margin-bottom:8px;';
 
-      for (const dest of (validDestinations || [])) {
+      for (const dest of validDestinations) {
         const opt = document.createElement('option');
         opt.value = dest;
-        opt.textContent = `ロケール ${dest}`;
+        opt.textContent = `エリア ${dest}`;
         sel.appendChild(opt);
       }
 
-      selections[pieceId] = sel.value;
-      sel.addEventListener('change', () => { selections[pieceId] = sel.value; });
+      selections[pieceId] = validDestinations[0];
+      sel.addEventListener('change', () => { selections[pieceId] = parseInt(sel.value, 10); });
 
       container.appendChild(sel);
     }
 
     this._appendSubmitBtn(container, '確定', () => {
-      onResponse({ destinations: { ...selections } });
+      // null（退却先なし）のエントリは除外してサーバーへ送信
+      const destinations = {};
+      for (const [pid, dest] of Object.entries(selections)) {
+        if (dest !== null) destinations[pid] = dest;
+      }
+      onResponse({ destinations });
     });
+  }
+
+  /**
+   * 士気マップトークン除去: 相手プレイヤーが対象ロケールを選ぶ。
+   * options: { side, amount, availableTokens: number[] }
+   */
+  renderMoraleTokenRemoval(container, options, gameState, onResponse) {
+    container.innerHTML = '';
+
+    const sideStr = options.side === 'france' ? 'フランス' : 'オーストリア';
+    const title = this._el('div', 'interruption-title', `${sideStr}士気トークン除去`);
+    const instr = this._el('div', 'interruption-instruction',
+      `${sideStr}のマップ上士気を ${options.amount} 個除去するロケールを選んでください`);
+    container.appendChild(title);
+    container.appendChild(instr);
+
+    // ロケール別にトークン数を集計
+    const countByLocale = {};
+    for (const localeId of (options.availableTokens || [])) {
+      countByLocale[localeId] = (countByLocale[localeId] || 0) + 1;
+    }
+
+    const selected = []; // 除去するロケールID配列（重複可）
+    const remainEl = this._el('div', 'interruption-instruction', `残り選択: ${options.amount}`);
+    container.appendChild(remainEl);
+
+    for (const [localeIdStr, count] of Object.entries(countByLocale)) {
+      const localeId = Number(localeIdStr);
+
+      const row = document.createElement('div');
+      row.className = 'reduction-row';
+
+      const lbl = document.createElement('div');
+      lbl.className = 'piece-label';
+      lbl.textContent = `ロケール ${localeId}（×${count}）`;
+
+      const ctrl = document.createElement('div');
+      ctrl.className = 'num-control';
+
+      const dec = document.createElement('button');
+      dec.textContent = '−';
+      const valEl = document.createElement('span');
+      valEl.className = 'num-val';
+      valEl.textContent = '0';
+      const inc = document.createElement('button');
+      inc.textContent = '+';
+
+      let localeSel = 0;
+      dec.addEventListener('click', () => {
+        if (localeSel > 0) {
+          localeSel--;
+          const pos = selected.lastIndexOf(localeId);
+          if (pos !== -1) selected.splice(pos, 1);
+          valEl.textContent = String(localeSel);
+          remainEl.textContent = `残り選択: ${options.amount - selected.length}`;
+        }
+      });
+      inc.addEventListener('click', () => {
+        if (localeSel < count && selected.length < options.amount) {
+          localeSel++;
+          selected.push(localeId);
+          valEl.textContent = String(localeSel);
+          remainEl.textContent = `残り選択: ${options.amount - selected.length}`;
+        }
+      });
+
+      ctrl.appendChild(dec);
+      ctrl.appendChild(valEl);
+      ctrl.appendChild(inc);
+      row.appendChild(lbl);
+      row.appendChild(ctrl);
+      container.appendChild(row);
+    }
+
+    this._appendSubmitBtn(container, '確定', () => {
+      // 未選択分は先頭から自動補完
+      const filled = [...selected];
+      const avail = options.availableTokens || [];
+      let ai = 0;
+      while (filled.length < options.amount && ai < avail.length) {
+        filled.push(avail[ai++]);
+      }
+      onResponse({ localeIds: filled });
+    });
+  }
+
+  /**
+   * フランス士気回収: フランスが1トークンを回収するロケールを選ぶ。
+   * options: { recoverableTokens: [{ localeId, count }] }
+   */
+  renderFranceMoraleRecovery(container, options, gameState, onResponse) {
+    container.innerHTML = '';
+
+    const title = this._el('div', 'interruption-title', 'フランス士気回収');
+    const instr = this._el('div', 'interruption-instruction',
+      '回収するトークンのロケールを選択\n（このターン投入分は除く）');
+    container.appendChild(title);
+    container.appendChild(instr);
+
+    const recoverableTokens = options.recoverableTokens || [];
+    let selectedLocaleId = null;
+
+    for (const { localeId, count } of recoverableTokens) {
+      const row = document.createElement('div');
+      row.className = 'interruption-option';
+
+      const rb = document.createElement('input');
+      rb.type = 'radio';
+      rb.name = 'frMoraleRecovery';
+      rb.value = String(localeId);
+      rb.addEventListener('change', () => { selectedLocaleId = localeId; });
+
+      const lbl = document.createElement('label');
+      lbl.textContent = `ロケール ${localeId}${count > 1 ? `（×${count}）` : ''}`;
+
+      row.appendChild(rb);
+      row.appendChild(lbl);
+      container.appendChild(row);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'interruption-actions';
+
+    const btnConfirm = this._btn('回収する', 'btn-yes', () => {
+      if (selectedLocaleId !== null) onResponse({ localeId: selectedLocaleId });
+    });
+    const btnSkip = this._btn('スキップ', 'btn-no', () => {
+      onResponse({ localeId: null });
+    });
+
+    actions.appendChild(btnConfirm);
+    actions.appendChild(btnSkip);
+    container.appendChild(actions);
+  }
+
+  /**
+   * 急襲後: 攻撃側アプローチ移動オプション UI
+   * options: { attackerPieceIds, attackLocaleId, attackEdgeIdx }
+   */
+  renderAttackerApproach(container, options, gameState, onResponse) {
+    container.innerHTML = '';
+
+    const title = this._el('div', 'interruption-title', '急襲後: アプローチ移動');
+    const instr = this._el('div', 'interruption-instruction',
+      'アプローチに移動する駒を選択（任意）\n移動しない場合は「スキップ」');
+    container.appendChild(title);
+    container.appendChild(instr);
+
+    const eligible = options.attackerPieceIds || [];
+    const checkboxes = this._renderCheckboxList(container, eligible, gameState, eligible.length);
+
+    const actions = document.createElement('div');
+    actions.className = 'interruption-actions';
+
+    const btnMove = this._btn('アプローチへ移動', 'btn-yes', () => {
+      const selected = checkboxes.filter(c => c.checked).map(c => c.value);
+      onResponse({ pieceIds: selected });
+    });
+    const btnSkip = this._btn('スキップ', 'btn-no', () => {
+      onResponse({ pieceIds: [] });
+    });
+
+    actions.appendChild(btnMove);
+    actions.appendChild(btnSkip);
+    container.appendChild(actions);
   }
 
   // ---------------------------------------------------------------------------

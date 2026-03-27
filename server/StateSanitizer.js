@@ -9,7 +9,7 @@
 /**
  * Sanitize a full game state for the given viewer.
  * @param {object} fullState
- * @param {string} viewerSide - 'france' | 'austria'
+ * @param {string} viewerSide - 'france' | 'austria' | 'spectator'
  * @returns {object} sanitized state (pieces anonymized as needed)
  */
 function sanitize(fullState, viewerSide) {
@@ -23,7 +23,16 @@ function sanitize(fullState, viewerSide) {
     sanitized.actedPieceIds = sanitized.actedPieceIds.values;
   }
 
-  sanitized.pieces = sanitizePieces(fullState.pieces, viewerSide);
+  if (viewerSide === 'spectator') {
+    // 観戦者: 全駒フル情報（faceUpを無視）
+    const result = {};
+    for (const [id, piece] of Object.entries(fullState.pieces)) {
+      result[id] = { ...piece };
+    }
+    sanitized.pieces = result;
+  } else {
+    sanitized.pieces = sanitizePieces(fullState.pieces, viewerSide);
+  }
 
   return sanitized;
 }

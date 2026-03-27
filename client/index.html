@@ -515,6 +515,19 @@
       font-size: 12px;
       padding: 8px 0;
     }
+
+    /* Solo mode indicator in header */
+    #soloIndicator {
+      display: none;
+      background: #3a2a0a;
+      border: 1px solid #b8860b;
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: 12px;
+      color: #f0c040;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
   </style>
 </head>
 <body>
@@ -527,6 +540,7 @@
   <div id="commandPoints">
     <span class="cp-label">司令:</span>
   </div>
+  <div id="soloIndicator">ソロモード｜操作中: <span id="soloActiveSide">—</span></div>
   <button id="btnSave" title="セーブ/ロード" style="margin-left:auto;background:#0f3460;border:1px solid #1a4a80;border-radius:4px;color:#eee;font-size:14px;padding:4px 10px;cursor:pointer;">💾</button>
 </div>
 
@@ -591,6 +605,8 @@
       <select id="inputSide">
         <option value="france">France (フランス)</option>
         <option value="austria">Austria (オーストリア)</option>
+        <option value="spectator">観戦（両軍全情報・操作不可）</option>
+        <option value="solo">ソロモード（両陣営操作）</option>
       </select>
     </div>
     <button id="connectBtn">接続</button>

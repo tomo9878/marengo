@@ -36,9 +36,9 @@
   ],
   "reinforcements": {
     "france": [
-      { "time": "5:00AM",  "round": 1,  "area": "renfort_500",  "entryRoad": "TODO" },
-      { "time": "11:00AM", "round": 6,  "area": "renfort_1100", "entryRoad": "TODO" },
-      { "time": "4:00PM",  "round": 11, "area": "renfort_1600", "entryRoad": "TODO" }
+      { "time": "5:00AM",  "round": 1,  "area": "renfort_500",  "count": 2, "entryRoad": "TODO" },
+      { "time": "11:00AM", "round": 6,  "area": "renfort_1100", "count": 3, "entryRoad": "TODO" },
+      { "time": "4:00PM",  "round": 11, "area": "renfort_1600", "count": 4, "entryRoad": "TODO" }
     ],
     "austria": {
       "note": "Bormida川より進入。砲兵は7:00AM(round2)以降",

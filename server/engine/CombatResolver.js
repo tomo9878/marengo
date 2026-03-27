@@ -69,14 +69,15 @@ function getValidAssaultLeaders(localeId, edgeIdx, side, state) {
  */
 function getValidCounterPieces(localeId, edgeIdx, side, state) {
   const hasCavObstacle = map.hasCavalryObstacle(localeId, edgeIdx);
+  const cavImpassable = map.isCavalryImpassable(localeId, edgeIdx);
   const pieces = Object.values(state.pieces).filter(
     p => p.localeId === localeId && p.side === side && p.strength >= 2
   );
 
   return pieces
     .filter(p => {
-      // 騎兵障害物があれば騎兵不可
-      if (hasCavObstacle && p.type === PIECE_TYPES.CAVALRY) return false;
+      // 騎兵突撃不可 or 騎兵障害物があれば騎兵不可
+      if ((cavImpassable || hasCavObstacle) && p.type === PIECE_TYPES.CAVALRY) return false;
       return true;
     })
     .map(p => p.id);
@@ -124,7 +125,7 @@ function getValidRetreatDestinations(pieceId, losingLocaleId, attackInfo, state)
  * @returns {{ winner: 'attacker'|'defender', retreatInfo, moraleInvestment, newState }}
  */
 function resolveRaid(
-  { attackerPieceIds, targetLocaleId, defenseEdgeIdx, defenseResponsePieceIds = [] },
+  { attackerPieceIds, targetLocaleId, defenseEdgeIdx, defenseResponsePieceIds = [], isFirstRaidThroughApproach = true },
   state
 ) {
   let next = cloneState(state);
@@ -146,11 +147,9 @@ function resolveRaid(
     const isWide = width === 'wide';
     const multipleAttackers = attackerPieceIds.length >= 2;
 
-    // 士気投入: 1 (wide + 2+ attackers + first raid this turn → 2)
-    // "first raid this turn through this approach" の判定は TurnManager が管理
-    // ここでは基本値を返す
+    // 士気投入: 1、ただし wide AND 2+攻撃者 AND 最初の急襲 → 2
     let moraleInvestment = 1;
-    if (isWide && multipleAttackers) {
+    if (isWide && multipleAttackers && isFirstRaidThroughApproach) {
       moraleInvestment = 2;
     }
 
@@ -205,7 +204,7 @@ function resolveRaid(
  * @returns {{ result: number, atkWins: boolean }}
  */
 function calculateAssaultResult(
-  { atkLeaderIds, defLeaderIds, counterIds, defenseEdgeIdx, attackEdgeIdx },
+  { atkLeaderIds, defLeaderIds, counterIds, defenseLocaleId, defenseEdgeIdx, attackEdgeIdx },
   state
 ) {
   // 攻撃先導駒の強度合計
@@ -215,21 +214,19 @@ function calculateAssaultResult(
   }, 0);
 
   // 防御アプローチのペナルティ計算
-  // 攻撃先導駒の兵種に一致する inf/cav ペナルティの数
-  // (防御側アプローチに対してのペナルティ、攻撃先導駒の兵種が歩兵か騎兵の場合)
-  const defLocaleId = state.pieces[defLeaderIds[0]]?.localeId
+  // 攻撃先導駒の兵種とシンボルが一致するごとに -1
+  const defLocaleId = defenseLocaleId
+    ?? state.pieces[defLeaderIds[0]]?.localeId
     ?? (counterIds.length > 0 ? state.pieces[counterIds[0]]?.localeId : null);
 
   let atkPenalties = 0;
   if (defLocaleId !== null && defLocaleId !== undefined) {
     const symbols = map.getApproachSymbols(defLocaleId, defenseEdgeIdx);
-    const hasInfPenalty = symbols.includes('inf_penalty');
-    for (const id of atkLeaderIds) {
-      const p = state.pieces[id];
-      if (!p) continue;
-      if (hasInfPenalty && (p.type === PIECE_TYPES.INFANTRY || p.type === PIECE_TYPES.CAVALRY)) {
-        atkPenalties++;
-      }
+    const hasInfLeader = atkLeaderIds.some(id => state.pieces[id]?.type === PIECE_TYPES.INFANTRY);
+    const hasCavLeader = atkLeaderIds.some(id => state.pieces[id]?.type === PIECE_TYPES.CAVALRY);
+    for (const sym of symbols) {
+      if (sym === 'inf_obstacle' && hasInfLeader) atkPenalties++;
+      if (sym === 'cav_obstacle' && hasCavLeader) atkPenalties++;
     }
   }
 
@@ -271,13 +268,14 @@ function calculateAssaultReductions(
   atkReductions += survivingDefCavCounters;
 
   // 攻撃側が負けた場合、追加減少
+  // 先導駒の戦力が敗北マージン以下（先導駒が圧倒された）かつ実際にマージンがある場合
   if (!atkWins) {
     const currentAtkLeaderStrength = atkLeaderIds.reduce((sum, id) => {
       const p = state.pieces[id];
       return sum + (p ? p.strength : 0);
     }, 0);
     const absResult = Math.abs(result);
-    if (currentAtkLeaderStrength <= absResult) {
+    if (absResult > 0 && currentAtkLeaderStrength <= absResult) {
       // 1 先導駒なら +1, 2 先導駒なら +2
       atkReductions += atkLeaderIds.length >= 2 ? 2 : 1;
     }

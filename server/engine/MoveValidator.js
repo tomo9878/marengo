@@ -18,7 +18,11 @@ const map = require('./MapGraph');
 
 const BORMIDA_ENTRY_LOCALE_IDX = 1; // ボルミダ川渡河地点（エリアidx=1、ユーザー確認済み）
 const ARTILLERY_ENTRY_MIN_ROUND = 2; // 7AM = round 2 (per scenarios.json artilleryAvailableFrom)
-const MAX_ENTRIES_PER_TURN = 4;
+const MAX_ENTRIES_PER_TURN = 3; // #10: 横断交通制限によりターン最大3駒
+
+// #10: 増援進入時の交通制限用定数
+const BORMIDA_ENTRY_CROSSING_ID = 'bormida_entry';
+const BORMIDA_ENTRY_DIRECTION = 'offmap->bormida';
 
 // ---------------------------------------------------------------------------
 // 司令コスト
@@ -81,6 +85,49 @@ function enemySide(side) {
   return side === SIDES.FRANCE ? SIDES.AUSTRIA : SIDES.FRANCE;
 }
 
+/**
+ * 指定ロケールへの敵進入が禁止されているか確認する。
+ * 保持エリアにまだマップへ進入していない増援がいる場合、そのエントリーロケールへの敵の進入は禁止。
+ * 現在はオーストリアの保持エリア (BORMIDA_ENTRY_LOCALE_IDX) のみ実装。
+ * @param {number} localeId - 進入しようとするロケール
+ * @param {string} enteringSide - 進入しようとしている側
+ * @param {object} state
+ * @returns {boolean}
+ */
+function isEntryLocaleProtected(localeId, enteringSide, state) {
+  // 相手側の保持エリアエントリーポイントを確認
+  const guardingSide = enemySide(enteringSide);
+  if (guardingSide === SIDES.AUSTRIA && localeId === BORMIDA_ENTRY_LOCALE_IDX) {
+    // オーストリアにまだオフマップの増援がいれば保護
+    return Object.values(state.pieces).some(
+      p => p.side === SIDES.AUSTRIA && p.localeId === null && p.strength > 0
+    );
+  }
+  return false;
+}
+
+/**
+ * フランス軍がアプローチをブロックできるか判定する。
+ * ラウンド1（6:00AM）はフランス軍混乱によりブロック不可。
+ * @param {object} state
+ * @returns {boolean}
+ */
+function canFranceBlock(state) {
+  return state.round !== 1;
+}
+
+/**
+ * 突撃敗北後のブロック済みアプローチかチェックする。
+ * @param {number} localeId - アプローチが属するロケール
+ * @param {number} edgeIdx  - アプローチのエッジインデックス
+ * @param {object} state
+ * @returns {boolean}
+ */
+function isApproachBlocked(localeId, edgeIdx, state) {
+  const blocked = state.blockedApproachesAfterAssault ?? [];
+  return blocked.some(b => b.localeId === localeId && b.edgeIdx === edgeIdx);
+}
+
 // ---------------------------------------------------------------------------
 // 悪路行軍（Section 7）
 // ---------------------------------------------------------------------------
@@ -109,7 +156,8 @@ function getLegalCrossCountryMoves(piece, state) {
 
   if (inReserve(piece)) {
     // 1. 同ロケール内のアプローチへ（混乱中は不可）
-    if (!piece.disordered) {
+    // ラウンド1: フランス軍はアプローチへのブロック不可
+    if (!piece.disordered && (piece.side !== SIDES.FRANCE || canFranceBlock(state))) {
       const locale = map.getLocale(piece.localeId);
       for (let i = 0; i < locale.edges.length; i++) {
         const edge = locale.edges[i];
@@ -136,6 +184,10 @@ function getLegalCrossCountryMoves(piece, state) {
       if (map.isOverCapacity(adjIdx, piece.side, state)) continue;
       const occupant = map.getLocaleOccupant(adjIdx, state);
       if (occupant === enemySide(piece.side)) continue; // 敵占拠ロケールへは悪路行軍不可
+      // 突撃敗北後: このアプローチ経由の行軍禁止
+      if (isApproachBlocked(piece.localeId, myEdgeIdx, state)) continue;
+      // 増援未進入保護: 敵保持エリアへの行軍禁止
+      if (isEntryLocaleProtected(adjIdx, piece.side, state)) continue;
       results.push({
         type: 'cross_country_march',
         pieceId: piece.id,
@@ -156,7 +208,7 @@ function getLegalCrossCountryMoves(piece, state) {
 
     // 4. アプローチ → 隣接ロケールのリザーブ（向かい側経由）
     const opposite = map.getOppositeApproach(piece.localeId, edgeIdx);
-    if (opposite) {
+    if (opposite && !isApproachBlocked(piece.localeId, edgeIdx, state)) {
       const occupant = map.getLocaleOccupant(opposite.localeIdx, state);
       if (occupant !== enemySide(piece.side) && !map.isOverCapacity(opposite.localeIdx, piece.side, state)) {
         results.push({
@@ -232,6 +284,8 @@ function getLegalRoadMoves(piece, state) {
       if (rt !== 'thick' && rt !== 'thin') continue;
       if (map.isImpassable(locale, myEdgeIdx)) continue;
       if (rt === 'thin' && !map.canSideUseThinRoad(locale, myEdgeIdx, piece.side)) continue;
+      // 突撃敗北後: このアプローチ経由の道路行軍禁止
+      if (isApproachBlocked(locale, myEdgeIdx, state)) continue;
 
       const direction   = `${locale}->${adjIdx}`;
       const canonicalId = map.getCanonicalCrossingId(locale, myEdgeIdx);
@@ -249,16 +303,58 @@ function getLegalRoadMoves(piece, state) {
     }
 
     for (const exp of bestEdgeByDest.values()) {
-      const { adjIdx, canonicalId, rt, minStep, direction, newMajorOnly } = exp;
-      const destLocale = adjIdx;
-
-      // 目的地の到達可能性チェック
-      if (map.isOverCapacity(destLocale, piece.side, state)) continue;
-      if (map.getLocaleOccupant(destLocale, state) === enemySide(piece.side)) continue;
-
+      const { adjIdx, canonicalId, rt, minStep, direction, newMajorOnly, myEdgeIdx } = exp;
+      const destLocale   = adjIdx;
       const commandCost  = newMajorOnly ? COMMAND_COST.major_road_march : COMMAND_COST.road_march;
       const newPath      = [...path, destLocale];
       const newCrossPath = [...crossingPath, { canonicalEdgeId: canonicalId, direction, step: minStep }];
+
+      // 目的地の到達可能性チェック
+      if (map.isOverCapacity(destLocale, piece.side, state)) continue;
+
+      if (map.getLocaleOccupant(destLocale, state) === enemySide(piece.side)) {
+        // 騎兵のみ: 道路行軍急襲アクションを生成（通常行軍・BFS継続はしない）
+        if (piece.type === PIECE_TYPES.CAVALRY) {
+          // 同一横断の道路行軍急襲は1ターン1回まで
+          if ((state.roadMarchRaidCrossings ?? []).includes(canonicalId)) continue;
+          // 増援未進入保護チェック
+          if (isEntryLocaleProtected(destLocale, piece.side, state)) continue;
+          // 防御側アプローチの取得
+          const opp = map.getOppositeApproach(locale, myEdgeIdx);
+          if (!opp) continue;
+          // 騎兵突撃不可チェック
+          if (map.isCavalryImpassable(destLocale, opp.edgeIdx)) continue;
+
+          const raidAction = {
+            type:              'road_march',
+            pieceId:           piece.id,
+            from:              { localeId: piece.localeId, position: 'reserve' },
+            to:                { localeId: destLocale, position: 'reserve' },
+            path:              newPath,
+            steps:             minStep,
+            commandCost,
+            isMajorRoadOnly:   newMajorOnly,
+            crossingPath:      newCrossPath,
+            raidTargetLocaleId: destLocale,
+            raidDefenseEdgeIdx: opp.edgeIdx,
+            raidCrossingId:    canonicalId,
+          };
+
+          const raidKey = `raid:${destLocale}:${newMajorOnly}`;
+          const existingRaid = bestByKey.get(raidKey);
+          if (!existingRaid ||
+              commandCost < existingRaid.commandCost ||
+              (commandCost === existingRaid.commandCost && minStep < existingRaid.steps)) {
+            bestByKey.set(raidKey, raidAction);
+          }
+        }
+        continue; // 敵占拠ロケールへの通常行軍・BFS継続は不可
+      }
+
+      // 突撃勝利後: このロケールへの道路行軍禁止
+      if ((state.roadMarchBlockedLocales ?? []).includes(destLocale)) continue;
+      // 増援未進入保護: 敵保持エリアへの道路行軍禁止
+      if (isEntryLocaleProtected(destLocale, piece.side, state)) continue;
 
       const action = {
         type:           'road_march',
@@ -374,6 +470,12 @@ function getLegalRaids(piece, state) {
     if (map.isImpassable(piece.localeId, defEdgeIdx)) return;
     // 完全ブロックされていないこと（完全ブロックは急襲不可）
     if (map.isFullyBlocked(targetLocaleIdx, defEdgeIdx, state)) return;
+    // 騎兵突撃不可チェック: 防御アプローチに cav_impassable がある場合、騎兵は急襲不可
+    if (map.isCavalryImpassable(targetLocaleIdx, defEdgeIdx) && piece.type === PIECE_TYPES.CAVALRY) return;
+    // 騎兵障害物チェック: 防御アプローチに cav_obstacle がある場合、攻撃側に歩兵が必要
+    if (map.hasCavalryObstacle(targetLocaleIdx, defEdgeIdx) && piece.type !== PIECE_TYPES.INFANTRY) return;
+    // 増援未進入保護: 敵保持エリアへの急襲禁止
+    if (isEntryLocaleProtected(targetLocaleIdx, piece.side, state)) return;
 
     results.push({
       type: 'raid',
@@ -389,13 +491,18 @@ function getLegalRaids(piece, state) {
   if (inReserve(piece)) {
     // リザーブ → 隣接ロケール（全方向）
     for (const { adjIdx, myEdgeIdx } of map.getAdjacent(piece.localeId)) {
+      // 突撃敗北後: このアプローチ経由の急襲禁止
+      if (isApproachBlocked(piece.localeId, myEdgeIdx, state)) continue;
       const opposite = map.getOppositeApproach(piece.localeId, myEdgeIdx);
       if (opposite) checkTarget(adjIdx, opposite.edgeIdx);
     }
   } else if (isApproach) {
     // アプローチ → 向かい側ロケール
-    const opposite = map.getOppositeApproach(piece.localeId, edgeIdx);
-    if (opposite) checkTarget(opposite.localeIdx, opposite.edgeIdx);
+    // 突撃敗北後: このアプローチ経由の急襲禁止
+    if (!isApproachBlocked(piece.localeId, edgeIdx, state)) {
+      const opposite = map.getOppositeApproach(piece.localeId, edgeIdx);
+      if (opposite) checkTarget(opposite.localeIdx, opposite.edgeIdx);
+    }
   }
 
   return results;
@@ -423,6 +530,9 @@ function getLegalAssaults(piece, state) {
   const { isApproach, edgeIdx } = getApproachInfo(piece);
   if (!isApproach) return [];
 
+  // 突撃敗北後: 同アプローチからの突撃禁止
+  if (isApproachBlocked(piece.localeId, edgeIdx, state)) return [];
+
   const opposite = map.getOppositeApproach(piece.localeId, edgeIdx);
   if (!opposite) return [];
 
@@ -433,6 +543,9 @@ function getLegalAssaults(piece, state) {
 
   // 対象ロケールが敵占拠であること
   if (map.getLocaleOccupant(opposite.localeIdx, state) !== enemySide(piece.side)) return [];
+
+  // 増援未進入保護: 敵保持エリアへの突撃禁止
+  if (isEntryLocaleProtected(opposite.localeIdx, piece.side, state)) return [];
 
   return [{
     type: 'assault',
@@ -462,6 +575,16 @@ function getLegalBombardments(piece, state) {
   if (!canAct(piece, state)) return [];
   if (piece.disordered) return [];
 
+  // 既に砲撃宣言済み → 取り消しアクションのみ返す（#11）
+  // ※ 敵占拠チェックより先に確認（宣言後に敵が退いた場合もキャンセル可能）
+  if (state.pendingBombardment?.artilleryId === piece.id) {
+    return [{
+      type: 'bombardment_cancel',
+      pieceId: piece.id,
+      commandCost: 0,
+    }];
+  }
+
   const { isApproach, edgeIdx } = getApproachInfo(piece);
   if (!isApproach) return []; // リザーブからは砲撃不可
 
@@ -474,9 +597,6 @@ function getLegalBombardments(piece, state) {
   // 向かい側アプローチにも砲兵ペナルティがあれば防御砲撃不可（攻撃側の砲撃は別）
   // 対象ロケールに敵がいること
   if (map.getLocaleOccupant(opposite.localeIdx, state) !== enemySide(piece.side)) return [];
-
-  // 既に砲撃宣言済みでないこと
-  if (state.pendingBombardment?.artilleryId === piece.id) return [];
 
   return [{
     type: 'bombardment_declare',
@@ -530,6 +650,13 @@ function getLegalEntryActions(state) {
   // 最大入場数チェック
   const entriesThisTurn = state.entriesThisTurn ?? 0;
   if (entriesThisTurn >= MAX_ENTRIES_PER_TURN) return [];
+
+  // #10: 増援進入時の交通制限チェック（マップ端 = 最初の横断）
+  const nextEntryStep = entriesThisTurn + 1;
+  const { canPass: canEnter } = map.checkCrossingTraffic(
+    BORMIDA_ENTRY_CROSSING_ID, BORMIDA_ENTRY_DIRECTION, nextEntryStep, state
+  );
+  if (!canEnter) return [];
 
   // このアクションのコストを計算
   const cost = entriesThisTurn === 0 ? 0 : 1;
@@ -656,12 +783,17 @@ function getAllLegalActions(state) {
 module.exports = {
   COMMAND_COST,
   BORMIDA_ENTRY_LOCALE_IDX,
+  BORMIDA_ENTRY_CROSSING_ID,
+  BORMIDA_ENTRY_DIRECTION,
   ARTILLERY_ENTRY_MIN_ROUND,
   MAX_ENTRIES_PER_TURN,
   canAct,
   inReserve,
   getApproachInfo,
   enemySide,
+  isApproachBlocked,
+  canFranceBlock,
+  isEntryLocaleProtected,
   getLegalCrossCountryMoves,
   getLegalRoadMoves,
   getLegalContinuationMoves,

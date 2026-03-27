@@ -45,6 +45,12 @@ class GameController {
       return;
     }
 
+    // 観戦者はアクション不可
+    if (side === 'spectator') {
+      this._sendError(ws, 'SPECTATOR_NO_ACTION', 'Spectators cannot perform actions');
+      return;
+    }
+
     switch (msg.type) {
       case 'ACTION':
         this._handleAction(ws, side, msg.action);
@@ -270,6 +276,23 @@ class GameController {
         break;
       }
 
+      case INTERRUPTION.ATTACKER_APPROACH:
+        // Auto: 全駒をアプローチへ移動（戦略的に有利）
+        autoResponse = { pieceIds: ctx.attackerPieceIds || [] };
+        break;
+
+      case INTERRUPTION.MORALE_TOKEN_REMOVAL:
+        // Auto: 指定数のトークンを先頭ロケールから除去
+        autoResponse = {
+          localeIds: (ctx.availableTokens || []).slice(0, ctx.amount),
+        };
+        break;
+
+      case INTERRUPTION.FRANCE_MORALE_RECOVERY:
+        // Auto: スキップ（回収しない）
+        autoResponse = { localeId: null };
+        break;
+
       default:
         // Unknown type, just respond with empty object
         autoResponse = {};
@@ -348,11 +371,27 @@ class GameController {
       // Send INTERRUPTION to the waiting player
       const waitingFor = interruption.waitingFor;
       const waitingState = sanitize(newState, waitingFor);
+
+      // Enrich RETREAT_DESTINATION options with per-piece valid destinations
+      let interruptionOptions = interruption.context;
+      if (interruption.type === INTERRUPTION.RETREAT_DESTINATION) {
+        const ctx = interruption.context;
+        const losingLocaleId = ctx.losingLocaleId;
+        const losingSide = ctx.losingSide || ctx.losingside;
+        const pieces = Object.values(newState.pieces)
+          .filter(p => p.localeId === losingLocaleId && p.side === losingSide && p.strength > 0)
+          .map(p => ({
+            pieceId: p.id,
+            validDestinations: getValidRetreatDestinations(p.id, losingLocaleId, ctx.attackInfo, newState),
+          }));
+        interruptionOptions = { ...ctx, pieces };
+      }
+
       this.room.sendTo(waitingFor, {
         type: 'INTERRUPTION',
         interruptionType: interruption.type,
         waitingFor: interruption.waitingFor,
-        options: interruption.context,
+        options: interruptionOptions,
         gameState: waitingState,
       });
 

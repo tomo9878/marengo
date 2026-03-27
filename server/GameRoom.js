@@ -2,7 +2,7 @@
 
 /**
  * GameRoom.js
- * Manages one game room (2 players: france and austria).
+ * Manages one game room (2 players: france and austria, plus optional spectators).
  */
 
 const { sanitize } = require('./StateSanitizer');
@@ -22,6 +22,8 @@ class GameRoom {
       france: false,
       austria: false,
     };
+    this._spectators = new Map(); // ws → spectatorId string
+    this._nextSpectatorId = 1;
   }
 
   // ---------------------------------------------------------------------------
@@ -47,12 +49,31 @@ class GameRoom {
   }
 
   /**
+   * Register a spectator's WebSocket connection.
+   * @param {object} ws - WebSocket instance
+   * @returns {string} assigned spectator ID
+   */
+  joinAsSpectator(ws) {
+    const id = `spectator_${this._nextSpectatorId++}`;
+    this._spectators.set(ws, id);
+    return id;
+  }
+
+  /**
    * Mark a player as disconnected (keep state for reconnection).
    * @param {string} side
    */
   disconnect(side) {
     this._connected[side] = false;
     // Keep _players[side] reference for reconnect detection, but ws is closed
+  }
+
+  /**
+   * Remove a spectator's WebSocket.
+   * @param {object} ws
+   */
+  disconnectSpectator(ws) {
+    this._spectators.delete(ws);
   }
 
   /**
@@ -94,23 +115,29 @@ class GameRoom {
   }
 
   /**
-   * Send the same message to both players.
+   * Send the same message to both players and all spectators.
    * @param {object} message
    */
   broadcast(message) {
     this.sendTo('france', message);
     this.sendTo('austria', message);
+    if (this._spectators.size > 0) {
+      const raw = JSON.stringify(message);
+      for (const [ws] of this._spectators) {
+        try { ws.send(raw); } catch { /* ignore */ }
+      }
+    }
   }
 
   /**
-   * Send sanitized state to each player.
+   * Send sanitized state to each player and all spectators.
    * Optionally merge extra fields into each player's message.
    * @param {object} fullState
    * @param {object} [extraFrance] - extra fields merged into france's message
    * @param {object} [extraAustria] - extra fields merged into austria's message
    */
   broadcastSanitized(fullState, extraFrance = {}, extraAustria = {}) {
-    const franceSanitized = sanitize(fullState, 'france');
+    const franceSanitized  = sanitize(fullState, 'france');
     const austriaSanitized = sanitize(fullState, 'austria');
 
     this.sendTo('france', {
@@ -123,6 +150,19 @@ class GameRoom {
       gameState: austriaSanitized,
       ...extraAustria,
     });
+
+    // 観戦者: 全駒フル情報、legalActionsなし
+    if (this._spectators.size > 0) {
+      const spectatorSanitized = sanitize(fullState, 'spectator');
+      const raw = JSON.stringify({
+        type: 'STATE_UPDATE',
+        gameState: spectatorSanitized,
+        legalActions: [],
+      });
+      for (const [ws] of this._spectators) {
+        try { ws.send(raw); } catch { /* ignore */ }
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -148,11 +188,12 @@ class GameRoom {
   /**
    * Get the side for a given WebSocket connection.
    * @param {object} ws
-   * @returns {'france'|'austria'|null}
+   * @returns {'france'|'austria'|'spectator'|null}
    */
   getSide(ws) {
     if (this._players.france === ws) return 'france';
     if (this._players.austria === ws) return 'austria';
+    if (this._spectators.has(ws)) return 'spectator';
     return null;
   }
 }

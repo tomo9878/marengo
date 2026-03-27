@@ -14,7 +14,6 @@
   }
   #toolbar h1 { font-size: 14px; color: #e94560; margin-right: 4px; white-space: nowrap; }
 
-  /* タブ */
   .tab-btn {
     padding: 5px 16px; border: 2px solid #0f3460; border-radius: 4px 4px 0 0;
     background: #0f3460; color: #aaa; cursor: pointer; font-size: 13px; font-weight: bold;
@@ -22,7 +21,6 @@
   .tab-btn.active { background: #1a1a2e; color: #eee; border-bottom-color: #1a1a2e; }
   .tab-btn:hover:not(.active) { background: #1a3060; }
 
-  /* ===== ステートバー ===== */
   #stateBar {
     display: flex; align-items: center; gap: 10px; padding: 7px 14px;
     border-bottom: 2px solid; flex-shrink: 0; transition: border-color .2s;
@@ -37,7 +35,6 @@
   }
   button:hover { filter: brightness(1.35); }
 
-  /* 道路タイプ選択 */
   #roadTypeGroup { display: flex; gap: 6px; }
   .road-type-btn {
     padding: 4px 12px; border-radius: 12px; border: 2px solid transparent;
@@ -47,25 +44,23 @@
   .road-type-btn.thin  { background: #33691e; color: #ccff90; border-color: #558b2f; }
   .road-type-btn.active { filter: brightness(1.5); border-color: #fff; }
 
-  /* ===== メイン ===== */
   #main { display: flex; flex: 1; overflow: hidden; }
   #canvasWrap { flex: 1; overflow: auto; position: relative; }
   canvas { display: block; }
 
   /* ===== サイドバー ===== */
   #sidebar {
-    width: 280px; background: #16213e; border-left: 2px solid #0f3460;
-    display: flex; flex-direction: column; flex-shrink: 0;
+    width: 300px; background: #16213e; border-left: 2px solid #0f3460;
+    display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto;
   }
-  .side-section { border-bottom: 2px solid #0f3460; }
+  .side-section { border-bottom: 2px solid #0f3460; flex-shrink: 0; }
   .side-section h2 {
     font-size: 12px; padding: 7px 10px; background: #0f3460;
     display: flex; justify-content: space-between; align-items: center; cursor: pointer;
   }
   .side-section h2 span { color: #4ecca3; }
-  .side-body { overflow-y: auto; max-height: 260px; }
+  .side-body { overflow-y: auto; max-height: 180px; }
 
-  /* リストアイテム */
   .list-item {
     padding: 6px 10px; border-bottom: 1px solid #1a2a3a; cursor: pointer;
     font-size: 12px; display: flex; align-items: center; gap: 6px;
@@ -77,6 +72,7 @@
   .item-badge { font-size: 10px; padding: 1px 5px; border-radius: 8px; flex-shrink: 0; }
   .badge-thick { background: #795548; color: #ffcc80; }
   .badge-thin  { background: #558b2f; color: #ccff90; }
+  .badge-east  { background: #7d5a00; color: #ffd700; }
   .item-del { color: #e94560; padding: 1px 5px; border-radius: 3px; flex-shrink: 0; }
   .item-del:hover { background: #e94560; color: #fff; }
 
@@ -94,27 +90,93 @@
   /* 辺情報 */
   #edgePanel { padding: 8px 10px; border-top: 1px solid #0f3460; display: none; flex-shrink: 0; background: #111827; }
   #edgePanel h4 { font-size: 11px; color: #f5a623; margin-bottom: 6px; }
-  .edge-row { font-size: 11px; padding: 3px 0; border-bottom: 1px solid #1a2a2a; display: flex; gap: 6px; align-items: center; }
-  .edge-id   { color: #81ecec; font-family: monospace; min-width: 70px; flex-shrink: 0; }
-  .edge-road { font-size: 10px; padding: 1px 5px; border-radius: 8px; flex-shrink: 0; }
-  .edge-adj  { color: #4ecca3; font-size: 11px; }
-  .edge-none-adj { color: #555; font-size: 11px; }
+  .edge-row {
+    font-size: 11px; padding: 4px 6px; border-bottom: 1px solid #1a2a2a;
+    display: flex; gap: 6px; align-items: center; cursor: pointer; border-radius: 3px;
+  }
+  .edge-row:hover { background: #1a2a3a; }
+  .edge-row.sel-edge { background: #1a3a5a; outline: 1px solid #f5a623; }
+  .edge-id   { color: #81ecec; font-family: monospace; min-width: 60px; flex-shrink: 0; }
+  .edge-road { font-size: 10px; padding: 1px 4px; border-radius: 8px; flex-shrink: 0; }
+  .edge-adj  { color: #4ecca3; font-size: 10px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .edge-none-adj { color: #555; font-size: 10px; }
+  .edge-attrs { font-size: 10px; color: #aaa; display: flex; gap: 3px; flex-wrap: wrap; }
+  .attr-badge {
+    padding: 0 4px; border-radius: 4px; font-size: 9px; white-space: nowrap;
+  }
+  .attr-wide    { background: #1a4a3a; color: #4ecca3; border: 1px solid #4ecca3; }
+  .attr-narrow  { background: #3a2a10; color: #f5a623; border: 1px solid #f5a623; }
+  .attr-cav     { background: #3a1a1a; color: #ff6b6b; border: 1px solid #ff6b6b; }
+  .attr-inf     { background: #2a1a3a; color: #a29bfe; border: 1px solid #a29bfe; }
+  .attr-art     { background: #3a2a00; color: #fdcb6e; border: 1px solid #fdcb6e; }
+  .attr-imp     { background: #3a0000; color: #ff4757; border: 1px solid #ff4757; }
+  .attr-ret     { background: #002a3a; color: #81ecec; border: 1px solid #81ecec; }
 
-  /* ===== ヒント ===== */
+  /* ===== 辺属性パネル ===== */
+  #edgeAttrPanel {
+    padding: 8px 10px; border-top: 1px solid #f5a623; display: none;
+    flex-shrink: 0; background: #0d1a2a;
+  }
+  #edgeAttrPanel h4 { font-size: 11px; color: #f5a623; margin-bottom: 8px; }
+  #edgeAttrPanel .prop-row { margin-bottom: 6px; }
+  #edgeAttrPanel .prop-row label { font-size: 10px; color: #aaa; display: block; margin-bottom: 3px; }
+
+  .width-btn {
+    padding: 3px 10px; border-radius: 10px; border: 2px solid #333;
+    font-size: 11px; font-weight: bold; cursor: pointer; background: #1a1a2e; color: #888;
+  }
+  .width-btn.active { color: #fff; }
+  .width-btn.w-null.active   { border-color: #555; background: #2a2a3a; color: #999; }
+  .width-btn.w-narrow.active { border-color: #f5a623; background: #3a2a00; color: #f5a623; }
+  .width-btn.w-wide.active   { border-color: #4ecca3; background: #003a2a; color: #4ecca3; }
+
+  .symbol-btn {
+    padding: 3px 8px; border-radius: 8px; border: 1px solid #333;
+    font-size: 11px; cursor: pointer; background: #1a1a2e; color: #666;
+    display: flex; align-items: center; gap: 3px;
+  }
+  .symbol-btn.active { color: #fff; }
+  .symbol-btn.s-art.active  { border-color: #fdcb6e; background: #3a2a00; color: #fdcb6e; }
+  .symbol-btn.s-imp.active  { border-color: #ff4757; background: #3a0000; color: #ff4757; }
+
+  /* カウンター型シンボル（騎兵・歩兵障害物） */
+  .symbol-counter-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 5px;
+  }
+  .sym-label { font-size: 11px; color: #ccc; flex: 1; }
+  .sym-count-btns { display: flex; gap: 3px; }
+  .cnt-btn {
+    padding: 2px 10px; border-radius: 6px; border: 1px solid #333;
+    font-size: 12px; font-weight: bold; cursor: pointer; background: #1a1a2e; color: #444;
+  }
+  .cnt-btn:hover { filter: brightness(1.5); }
+  .cnt-btn.active-cav { border-color: #ff6b6b; background: #3a1a1a; color: #ff6b6b; }
+  .cnt-btn.active-inf { border-color: #a29bfe; background: #2a1a3a; color: #a29bfe; }
+  .symbol-btn.s-cav-imp.active { border-color: #ff4500; background: #3a0a00; color: #ff4500; }
+
+  .retreat-check-row {
+    display: flex; align-items: center; gap: 6px; margin-top: 4px;
+    padding: 4px 6px; border-radius: 4px; background: #0f2030; cursor: pointer;
+  }
+  .retreat-check-row:hover { background: #1a2a40; }
+  .retreat-check-row label { font-size: 11px; color: #81ecec; cursor: pointer; margin: 0; }
+  .retreat-check-row input { width: auto; margin: 0; cursor: pointer; }
+
+  /* ヒント */
   #hint {
     position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
     background: rgba(0,0,0,0.85); padding: 5px 16px; border-radius: 20px;
     font-size: 11px; pointer-events: none; color: #4ecca3; white-space: nowrap; z-index: 100;
   }
 
-  /* 透明度 */
   #opRow { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #aaa; }
   #opRow input { width: 75px; }
+
+  .btn-group { display: flex; gap: 4px; flex-wrap: wrap; }
 </style>
 </head>
 <body>
 
-<!-- ===== ツールバー ===== -->
 <div id="toolbar">
   <h1>🗺 マップエディタ</h1>
   <button class="tab-btn active" id="tabArea" onclick="switchTab('area')">📐 エリア</button>
@@ -130,22 +192,20 @@
     <label><input type="checkbox" id="chkEdge" checked onchange="render()"> 辺ID</label>
     <label><input type="checkbox" id="chkVtx"  checked onchange="render()"> 頂点</label>
     <label><input type="checkbox" id="chkLbl"  checked onchange="render()"> ラベル</label>
+    <label><input type="checkbox" id="chkAttr" checked onchange="render()"> 属性</label>
   </div>
   <button onclick="exportJSON()" style="background:#4ecca3;color:#000;font-weight:bold;margin-left:auto;">💾 JSON書き出し</button>
   <button onclick="importJSON()">📂 JSON読込</button>
 </div>
 
-<!-- ===== ステートバー ===== -->
 <div id="stateBar" class="area-mode">
   <span id="stateLabel">● 待機中</span>
-  <!-- エリア用ボタン -->
   <div id="areaControls">
     <button id="btnStart"   onclick="startDrawing()" style="background:#4ecca3;color:#000;font-weight:bold;">＋ 新しいエリア開始</button>
     <button id="btnConfirm" onclick="confirmArea()"  style="background:#f5a623;color:#000;font-weight:bold;display:none;">✔ 確定</button>
     <button id="btnUndo"    onclick="undoPoint()"    style="display:none;">↩ 取消</button>
     <button id="btnCancel"  onclick="cancelDraw()"   style="display:none;">✖ キャンセル</button>
   </div>
-  <!-- 道路用ボタン -->
   <div id="roadControls" style="display:none;">
     <div id="roadTypeGroup">
       <button class="road-type-btn thick active" id="rtThick" onclick="setRoadType('thick')">━ 太い道（MP1）</button>
@@ -159,7 +219,6 @@
   <span id="ptCount" style="font-size:12px;color:#aaa;margin-left:8px;"></span>
 </div>
 
-<!-- ===== メイン ===== -->
 <div id="main">
   <div id="canvasWrap"><canvas id="canvas"></canvas></div>
   <div id="sidebar">
@@ -178,18 +237,66 @@
 
     <!-- 辺情報 -->
     <div id="edgePanel">
-      <h4>🔗 辺と道路の接続</h4>
+      <h4>🔗 辺と道路の接続 <span style="color:#888;font-size:10px;font-weight:normal;">（辺をクリックで属性編集）</span></h4>
       <div id="edgeList"></div>
     </div>
 
-    <!-- プロパティ -->
+    <!-- 辺属性パネル -->
+    <div id="edgeAttrPanel">
+      <h4>🔧 辺属性: <span id="edgeAttrTitle" style="color:#f5a623;">-</span></h4>
+
+      <div class="prop-row">
+        <label>アプローチ幅</label>
+        <div class="btn-group">
+          <button class="width-btn w-null"   id="wNull"   onclick="setWidth(null)">未設定</button>
+          <button class="width-btn w-narrow" id="wNarrow" onclick="setWidth('narrow')">Narrow（1駒ブロック）</button>
+          <button class="width-btn w-wide"   id="wWide"   onclick="setWidth('wide')">Wide（2駒ブロック）</button>
+        </div>
+      </div>
+
+      <div class="prop-row">
+        <label>障害物マーク（先導駒の兵種と一致するごとに戦闘力−1）</label>
+        <div class="symbol-counter-row">
+          <span class="sym-label">🐴 騎兵障害物</span>
+          <div class="sym-count-btns">
+            <button class="cnt-btn" id="sCav0" onclick="setSymbolCount('cav_obstacle',0)">0</button>
+            <button class="cnt-btn" id="sCav1" onclick="setSymbolCount('cav_obstacle',1)">1</button>
+            <button class="cnt-btn" id="sCav2" onclick="setSymbolCount('cav_obstacle',2)">2</button>
+          </div>
+        </div>
+        <div class="symbol-counter-row">
+          <span class="sym-label">⚔ 歩兵障害物</span>
+          <div class="sym-count-btns">
+            <button class="cnt-btn" id="sInf0" onclick="setSymbolCount('inf_obstacle',0)">0</button>
+            <button class="cnt-btn" id="sInf1" onclick="setSymbolCount('inf_obstacle',1)">1</button>
+            <button class="cnt-btn" id="sInf2" onclick="setSymbolCount('inf_obstacle',2)">2</button>
+          </div>
+        </div>
+        <div class="btn-group" style="margin-top:4px;">
+          <button class="symbol-btn s-cav-imp" id="sCavImp" onclick="toggleSymbol('cav_impassable')">🚫🐴 騎兵突撃不可</button>
+          <button class="symbol-btn s-art" id="sArt" onclick="toggleSymbol('artillery_penalty')">💣 砲兵ペナルティ</button>
+          <button class="symbol-btn s-imp" id="sImp" onclick="toggleSymbol('impassable')">🚫 全通行不可</button>
+        </div>
+      </div>
+
+      <div class="retreat-check-row" onclick="document.getElementById('pRetreat').click()">
+        <input type="checkbox" id="pRetreat" onchange="saveEdgeAttr()" onclick="event.stopPropagation()">
+        <label for="pRetreat">↩ この方向へ撤退可能（敗走駒がこの辺を通って隣のロケールへ退ける）</label>
+      </div>
+    </div>
+
+    <!-- エリアプロパティ -->
     <div id="propPanel">
       <h3 id="propTitle">📝 プロパティ</h3>
       <div class="prop-row"><label>名前</label>
         <input id="pName" placeholder="例: Marengo村" oninput="saveProp()"></div>
       <div id="areaPropExtra">
         <div class="prop-row"><label>容量（ユニット数上限）</label>
-          <input id="pCap" type="number" min="1" max="20" placeholder="例: 3" oninput="saveProp()"></div>
+          <input id="pCap" type="number" min="1" max="20" placeholder="例: 3" oninput="saveProp()" onchange="saveProp()"></div>
+        <div class="prop-row" style="display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="pEast" onchange="saveProp()" style="width:auto;margin:0;">
+          <label style="margin:0;color:#ffd700;cursor:pointer;" for="pEast">🏆 目標ライン東側（勝利エリア）</label>
+        </div>
         <div class="prop-row"><label>メモ</label>
           <input id="pNote" placeholder="自由メモ" oninput="saveProp()"></div>
       </div>
@@ -206,7 +313,6 @@
 </div>
 
 <div id="hint"></div>
-
 <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="onMapFile(event)">
 <input type="file" id="jsonInput" accept=".json"   style="display:none" onchange="onJSONFile(event)">
 
@@ -219,16 +325,15 @@ const ctx    = canvas.getContext('2d');
 
 let mapImg     = null;
 let mapOpacity = 0.65;
-let tab        = 'area';   // 'area' | 'road'
+let tab        = 'area';
 
-// エリア
 let areas       = [];
 let drawingArea = false;
 let curAreaPts  = [];
 let selAreaIdx  = null;
+let selEdgeIdx  = null;   // ← 新: 選択中の辺インデックス
 let aColorIdx   = 0;
 
-// 道路
 let roads       = [];
 let drawingRoad = false;
 let curRoadPts  = [];
@@ -238,9 +343,9 @@ let curRoadType = 'thick';
 let mousePos = null;
 let sharedEdgeCache = {};
 
-const SNAP   = 20;
+const SNAP     = 20;
 const SHARE_THR = 60;
-const ROAD_MP = { thick: 1, thin: 2, none: 3 };
+const ROAD_MP  = { thick: 1, thin: 2, none: 3 };
 const ROAD_COLOR = { thick: '#ff8c00', thin: '#8bc34a' };
 
 const PALETTE = [
@@ -249,6 +354,18 @@ const PALETTE = [
   '#fdcb6e','#81ecec','#a29bfe','#fab1a0','#00cec9','#c0392b','#27ae60','#8e44ad',
 ];
 function nextColor() { return PALETTE[aColorIdx++ % PALETTE.length]; }
+
+// =====================================================
+//  辺属性ヘルパー
+// =====================================================
+function getEdgeAttr(areaIdx, edgeIdx) {
+  const a = areas[areaIdx];
+  if (!a.edgeAttrs) a.edgeAttrs = {};
+  if (!a.edgeAttrs[edgeIdx]) {
+    a.edgeAttrs[edgeIdx] = { width: null, symbols: [], canRetreat: false };
+  }
+  return a.edgeAttrs[edgeIdx];
+}
 
 // =====================================================
 //  タブ切替
@@ -260,9 +377,8 @@ function switchTab(t) {
   document.getElementById('areaControls').style.display = t==='area' ? '' : 'none';
   document.getElementById('roadControls').style.display = t==='road' ? '' : 'none';
   document.getElementById('stateBar').className = t==='area' ? 'area-mode' : 'road-mode';
-  // 描画中なら中断
-  if (t==='area') { cancelRoad(); }
-  else            { cancelDraw(); }
+  if (t==='area') cancelRoad();
+  else            cancelDraw();
   updateStateUI();
   render();
 }
@@ -279,7 +395,6 @@ function onMapFile(e) {
 }
 window.addEventListener('load', () => { canvas.width=1200; canvas.height=750; updateStateUI(); render(); });
 function updateOpacity(v) { mapOpacity=v/100; document.getElementById('opVal').textContent=v+'%'; render(); }
-
 function toggleSection(id) {
   const el = document.getElementById(id);
   el.style.display = el.style.display==='none' ? '' : 'none';
@@ -294,8 +409,12 @@ function cancelDraw()   { drawingArea=false; curAreaPts=[]; canvas.style.cursor=
 function undoPoint()    { if (curAreaPts.length>0){ curAreaPts.pop(); updateStateUI(); render(); } }
 
 function finishArea() {
-  areas.push({ id:Date.now(), color:nextColor(), name:`エリア_${areas.length+1}`,
-    capacity:null, note:'', polygon:[...curAreaPts] });
+  areas.push({
+    id: Date.now(), color: nextColor(), name: `エリア_${areas.length+1}`,
+    capacity: null, eastOfObjective: false, note: '',
+    polygon: [...curAreaPts],
+    edgeAttrs: {},
+  });
   drawingArea=false; curAreaPts=[];
   canvas.style.cursor='default';
   rebuildSharedEdges(); updateStateUI(); updateSidebar(); selectArea(areas.length-1); render();
@@ -309,16 +428,12 @@ function setRoadType(t) {
   document.getElementById('rtThick').classList.toggle('active', t==='thick');
   document.getElementById('rtThin').classList.toggle('active', t==='thin');
 }
-
-function confirmRoad() {
-  if (curRoadPts.length<2){ alert('2点以上必要です'); return; }
-  finishRoad();
-}
+function confirmRoad() { if (curRoadPts.length<2){ alert('2点以上必要です'); return; } finishRoad(); }
 function cancelRoad()  { drawingRoad=false; curRoadPts=[]; canvas.style.cursor='default'; updateStateUI(); render(); }
 function undoRoadPt()  { if (curRoadPts.length>0){ curRoadPts.pop(); updateStateUI(); render(); } }
 
 function finishRoad() {
-  roads.push({ id:Date.now(), type:curRoadType, name:`道路_${roads.length+1}`, points:[...curRoadPts] });
+  roads.push({ id: Date.now(), type: curRoadType, name: `道路_${roads.length+1}`, points: [...curRoadPts] });
   drawingRoad=false; curRoadPts=[];
   canvas.style.cursor='default';
   updateStateUI(); updateSidebar(); selectRoad(roads.length-1); render();
@@ -346,7 +461,9 @@ function updateStateUI() {
     } else {
       lbl.textContent = areas.length ? `✔ ${areas.length}エリア確定済み` : '● 待機中';
       bs.style.display=''; bc.style.display=bu.style.display=bx.style.display='none'; ptC.textContent='';
-      hint.textContent = '「新しいエリア開始」→ 角をクリック → 確定 | 道路を登録するには「道路」タブへ';
+      hint.textContent = selEdgeIdx!=null
+        ? '辺を選択中 — Wide/Narrow・シンボル・撤退方向を設定 | 他の辺をクリックで切替'
+        : '「新しいエリア開始」→ 角をクリック → 確定 | エリア選択後、辺をクリックで属性設定';
     }
   } else {
     const bc = document.getElementById('btnRoadConfirm'),
@@ -375,12 +492,21 @@ canvas.addEventListener('mouseleave', () => { mousePos=null; render(); });
 canvas.addEventListener('click', e => {
   const pt = getPos(e);
   if (tab==='area') {
-    if (!drawingArea) { selectArea(hitTestArea(pt)); return; }
+    if (!drawingArea) {
+      // まず選択中エリアの辺の近くかチェック
+      if (selAreaIdx != null) {
+        const ei = hitTestEdge(pt, selAreaIdx);
+        if (ei !== null) { selectEdge(ei); return; }
+      }
+      // エリア選択
+      const newArea = hitTestArea(pt);
+      selectArea(newArea);
+      return;
+    }
     if (curAreaPts.length>=3 && dist(pt,curAreaPts[0]) < SNAP/getScale()) { finishArea(); return; }
     curAreaPts.push({x:pt.x,y:pt.y}); updateStateUI(); render();
   } else {
     if (!drawingRoad) {
-      // 道路タブ: クリックで自動開始
       drawingRoad=true; curRoadPts=[]; canvas.style.cursor='crosshair';
     }
     if (selRoadIdx!==null) { selectRoad(null); }
@@ -395,7 +521,7 @@ canvas.addEventListener('dblclick', e => {
 
 window.addEventListener('keydown', e => {
   if (['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
-  if (e.key==='Escape') { cancelDraw(); cancelRoad(); }
+  if (e.key==='Escape') { cancelDraw(); cancelRoad(); selEdgeIdx=null; hideEdgeAttrPanel(); render(); }
   if ((e.ctrlKey||e.metaKey) && e.key==='z') { e.preventDefault(); tab==='area' ? undoPoint() : undoRoadPt(); }
   if (e.key==='Enter') { tab==='area' ? confirmArea() : confirmRoad(); }
   if ((e.key==='Delete'||e.key==='Backspace') && !drawingArea && !drawingRoad) {
@@ -425,6 +551,17 @@ function pointInPoly(pt,poly) {
     if ((yi>pt.y)!==(yj>pt.y) && pt.x<(xj-xi)*(pt.y-yi)/(yj-yi)+xi) inside=!inside;
   }
   return inside;
+}
+
+// 選択中エリアの辺に近いエッジインデックスを返す
+function hitTestEdge(pt, areaIdx) {
+  const poly = areas[areaIdx].polygon;
+  const threshold = 14 / getScale();
+  for (let ei=0; ei<poly.length; ei++) {
+    const a = poly[ei], b = poly[(ei+1)%poly.length];
+    if (ptSegDist(pt, a, b) < threshold) return ei;
+  }
+  return null;
 }
 
 // =====================================================
@@ -458,19 +595,16 @@ function edgesShared(pa,ei,pb,fi) {
 //  道路→辺のマッピング
 // =====================================================
 function segsCross(p1,p2, p3,p4) {
-  // 2線分が交差するか（または近接するか）
   function cross2d(a,b) { return a.x*b.y - a.y*b.x; }
   function sub(a,b) { return {x:a.x-b.x, y:a.y-b.y}; }
   const d1=sub(p2,p1), d2=sub(p4,p3), d3=sub(p3,p1);
   const cross=cross2d(d1,d2);
   if (Math.abs(cross)<1e-9) {
-    // 平行：最短距離チェック
     return ptSegDist(p1,p3,p4)<18 || ptSegDist(p2,p3,p4)<18 ||
            ptSegDist(p3,p1,p2)<18 || ptSegDist(p4,p1,p2)<18;
   }
   const t=cross2d(d3,d2)/cross, u=cross2d(d3,d1)/cross;
   if (t>=0&&t<=1&&u>=0&&u<=1) return true;
-  // 近くを通る場合もカバー
   return ptSegDist(p1,p3,p4)<14 || ptSegDist(p2,p3,p4)<14 ||
          ptSegDist(p3,p1,p2)<14 || ptSegDist(p4,p1,p2)<14;
 }
@@ -482,7 +616,6 @@ function ptSegDist(p,a,b) {
 }
 
 function getRoadTypeForEdge(ai, ei) {
-  // このエリア辺に交差・近接する道路のうち最もMPが低いものを返す
   const poly=areas[ai].polygon;
   const ep1=poly[ei], ep2=poly[(ei+1)%poly.length];
   let best='none';
@@ -513,36 +646,48 @@ function render() {
   }
 
   ctx.globalAlpha=mapOpacity; ctx.drawImage(mapImg,0,0); ctx.globalAlpha=1;
-
-  // 確定エリア
   areas.forEach((a,i) => drawArea(a,i,i===selAreaIdx));
-
-  // 確定道路
   roads.forEach((r,i) => drawRoad(r,i===selRoadIdx,false));
-
-  // 描画中エリア
   if (drawingArea && curAreaPts.length>0) drawCurArea();
-
-  // 描画中道路
   if (drawingRoad && curRoadPts.length>0) drawCurRoad();
 }
 
-function drawArea(area,idx,selected) {
+function drawArea(area, idx, selected) {
   const poly=area.polygon; if (poly.length<3) return;
   const showEdge=document.getElementById('chkEdge').checked;
   const showVtx =document.getElementById('chkVtx').checked;
   const showLbl =document.getElementById('chkLbl').checked;
+  const showAttr=document.getElementById('chkAttr').checked;
 
   ctx.beginPath(); ctx.moveTo(poly[0].x,poly[0].y);
   poly.forEach(p=>ctx.lineTo(p.x,p.y)); ctx.closePath();
   ctx.fillStyle=area.color+Math.round((selected?0.46:0.24)*255).toString(16).padStart(2,'0');
   ctx.fill();
 
-  // 辺（道路タイプで色変え）
+  if (area.eastOfObjective) {
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(poly[0].x,poly[0].y);
+    poly.forEach(p=>ctx.lineTo(p.x,p.y)); ctx.closePath(); ctx.clip();
+    ctx.strokeStyle='rgba(255,215,0,0.45)'; ctx.lineWidth=3;
+    const bb={minX:Math.min(...poly.map(p=>p.x)),maxX:Math.max(...poly.map(p=>p.x)),
+              minY:Math.min(...poly.map(p=>p.y)),maxY:Math.max(...poly.map(p=>p.y))};
+    for (let d=bb.minX-bb.maxY+bb.minY; d<bb.maxX+bb.maxY-bb.minY; d+=14) {
+      ctx.beginPath(); ctx.moveTo(d,bb.minY); ctx.lineTo(d+bb.maxY-bb.minY,bb.maxY); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   for (let ei=0; ei<poly.length; ei++) {
     const a=poly[ei], b=poly[(ei+1)%poly.length];
     const rt = getRoadTypeForEdge(idx,ei);
-    const shared = sharedEdgeCache[edgeKey(idx,ei)];
+    const isSelEdge = selected && ei===selEdgeIdx;
+
+    // 選択辺をハイライト
+    if (isSelEdge) {
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
+      ctx.strokeStyle='#f5a623'; ctx.lineWidth=6; ctx.stroke();
+    }
+
     ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
     ctx.strokeStyle = rt==='thick' ? '#ff8c00' : rt==='thin' ? '#8bc34a' : area.color;
     ctx.lineWidth   = selected ? 2.5 : 2;
@@ -556,6 +701,37 @@ function drawArea(area,idx,selected) {
       ctx.lineWidth=2.5; ctx.strokeStyle='rgba(0,0,0,0.8)'; ctx.strokeText(lbl,mx,my);
       ctx.fillStyle=rt==='thick'?'#ff8c00':rt==='thin'?'#8bc34a':'#aaa'; ctx.fillText(lbl,mx,my);
     }
+
+    // 辺属性インジケーター
+    if (showAttr && (selected || rt!=='none')) {
+      const attr = (area.edgeAttrs||{})[ei] || {};
+      const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+      const indicators = [];
+
+      if (attr.width==='wide')   indicators.push({t:'W', c:'#4ecca3'});
+      if (attr.width==='narrow') indicators.push({t:'N', c:'#f5a623'});
+      const syms = attr.symbols || [];
+      const cavCnt = syms.filter(s=>s==='cav_obstacle').length;
+      const infCnt = syms.filter(s=>s==='inf_obstacle').length;
+      for (let ci=0; ci<cavCnt; ci++) indicators.push({t:'🐴', c:'#ff6b6b'});
+      for (let ci=0; ci<infCnt; ci++) indicators.push({t:'⚔', c:'#a29bfe'});
+      if (syms.includes('cav_impassable'))    indicators.push({t:'🚫🐴', c:'#ff4500'});
+      if (syms.includes('artillery_penalty')) indicators.push({t:'💣', c:'#fdcb6e'});
+      if (syms.includes('impassable'))        indicators.push({t:'🚫', c:'#ff4757'});
+      if (attr.canRetreat)                    indicators.push({t:'↩', c:'#81ecec'});
+
+      if (indicators.length > 0) {
+        const total = indicators.length;
+        const spacing = 13;
+        const startX = mx - (total-1)*spacing/2;
+        const offY = -10;
+        indicators.forEach(({t,c}, i2) => {
+          ctx.font='11px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+          ctx.lineWidth=2; ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.strokeText(t, startX+i2*spacing, my+offY);
+          ctx.fillStyle=c; ctx.fillText(t, startX+i2*spacing, my+offY);
+        });
+      }
+    }
   }
 
   if (showVtx) {
@@ -568,7 +744,9 @@ function drawArea(area,idx,selected) {
     const cx=poly.reduce((s,p)=>s+p.x,0)/poly.length;
     const cy=poly.reduce((s,p)=>s+p.y,0)/poly.length;
     drawLabel(area.name,cx,cy,13,'#fff');
-    if (area.capacity!=null) drawLabel(`×${area.capacity}`,cx,cy+17,11,'#4ecca3');
+    let labelOffY=17;
+    if (area.capacity!=null) { drawLabel(`×${area.capacity}`,cx,cy+labelOffY,11,'#4ecca3'); labelOffY+=14; }
+    if (area.eastOfObjective) drawLabel('🏆',cx,cy+labelOffY,13,'#ffd700');
   }
 }
 
@@ -581,7 +759,6 @@ function drawRoad(road,selected,preview) {
   ctx.lineWidth = selected ? 5 : (road.type==='thick' ? 4 : 2.5);
   ctx.setLineDash(road.type==='thin' ? [10,6] : []);
   ctx.stroke(); ctx.setLineDash([]);
-
   if (selected) {
     pts.forEach(p=>{
       ctx.beginPath(); ctx.arc(p.x,p.y,5,0,Math.PI*2);
@@ -631,7 +808,6 @@ function drawLabel(text,x,y,size,color) {
 //  サイドバー
 // =====================================================
 function updateSidebar() {
-  // エリア一覧
   document.getElementById('areaCount').textContent=areas.length;
   const al=document.getElementById('areaList'); al.innerHTML='';
   areas.forEach((a,i)=>{
@@ -639,13 +815,13 @@ function updateSidebar() {
     d.className='list-item'+(i===selAreaIdx?' sel':'');
     d.innerHTML=`<div class="swatch" style="background:${a.color}"></div>
       <span class="item-name">${a.name}</span>
+      ${a.eastOfObjective?'<span class="item-badge badge-east">🏆</span>':''}
       <span class="item-badge" style="background:#1a4a7a;color:#4ecca3">${a.capacity!=null?'×'+a.capacity:''}</span>
       <span class="item-del" onclick="deleteArea(${i},event)">✕</span>`;
     d.addEventListener('click',()=>selectArea(i));
     al.appendChild(d);
   });
 
-  // 道路一覧
   document.getElementById('roadCount').textContent=roads.length;
   const rl=document.getElementById('roadList'); rl.innerHTML='';
   roads.forEach((r,i)=>{
@@ -664,8 +840,28 @@ function updateSidebar() {
   updateStateUI();
 }
 
+function buildEdgeAttrBadges(attr) {
+  let html = '';
+  if (attr.width==='wide')   html += `<span class="attr-badge attr-wide">Wide</span>`;
+  if (attr.width==='narrow') html += `<span class="attr-badge attr-narrow">Narrow</span>`;
+  const s = attr.symbols || [];
+  const cavCount = s.filter(x => x==='cav_obstacle').length;
+  const infCount = s.filter(x => x==='inf_obstacle').length;
+  if (cavCount===1) html += `<span class="attr-badge attr-cav">🐴</span>`;
+  if (cavCount===2) html += `<span class="attr-badge attr-cav">🐴×2</span>`;
+  if (infCount===1) html += `<span class="attr-badge attr-inf">⚔</span>`;
+  if (infCount===2) html += `<span class="attr-badge attr-inf">⚔×2</span>`;
+  if (s.includes('cav_impassable'))    html += `<span class="attr-badge attr-cav">🚫🐴</span>`;
+  if (s.includes('artillery_penalty')) html += `<span class="attr-badge attr-art">💣</span>`;
+  if (s.includes('impassable'))        html += `<span class="attr-badge attr-imp">🚫</span>`;
+  if (attr.canRetreat)                 html += `<span class="attr-badge attr-ret">↩撤退</span>`;
+  return html;
+}
+
 function selectArea(idx) {
-  selAreaIdx=idx; selRoadIdx=null;
+  if (selAreaIdx!=null) saveProp();  // 切り替え前に現在の値を保存
+  selAreaIdx=idx; selEdgeIdx=null; selRoadIdx=null;
+  hideEdgeAttrPanel();
   updateSidebar();
   const pp=document.getElementById('propPanel'), ep=document.getElementById('edgePanel');
   document.getElementById('areaPropExtra').style.display='';
@@ -676,26 +872,136 @@ function selectArea(idx) {
   const a=areas[idx];
   document.getElementById('pName').value=a.name||'';
   document.getElementById('pCap').value=a.capacity??'';
+  document.getElementById('pEast').checked=a.eastOfObjective||false;
   document.getElementById('pNote').value=a.note||'';
-  // 辺一覧
+
+  // 辺一覧（クリックで属性編集）
   const el=document.getElementById('edgeList'); el.innerHTML='';
   const poly=a.polygon;
   for (let ei=0; ei<poly.length; ei++) {
     const sh=sharedEdgeCache[edgeKey(idx,ei)];
     const rt=getRoadTypeForEdge(idx,ei);
+    const attr=getEdgeAttr(idx, ei);
     const rtHtml=rt==='thick'?`<span class="edge-road badge-thick">太</span>`:
                   rt==='thin' ?`<span class="edge-road badge-thin">細</span>`:'';
-    const row=document.createElement('div'); row.className='edge-row';
-    row.innerHTML=`<span class="edge-id">e${idx}-${ei}</span>${rtHtml}`+
-      (sh?`<span class="edge-adj">↔ ${areas[sh.adj]?.name||'?'}</span>`:`<span class="edge-none-adj">外部境界</span>`);
+    const adjHtml=sh?`<span class="edge-adj">↔ ${areas[sh.adj]?.name||'?'}</span>`:`<span class="edge-none-adj">外部境界</span>`;
+    const attrHtml=buildEdgeAttrBadges(attr);
+    const row=document.createElement('div');
+    row.className='edge-row';
+    row.dataset.ei=ei;
+    row.innerHTML=`<span class="edge-id">e${idx}-${ei}</span>${rtHtml}${adjHtml}
+      <span class="edge-attrs">${attrHtml}</span>`;
+    row.addEventListener('click', ()=>selectEdge(ei));
     el.appendChild(row);
   }
+
   document.querySelectorAll('#areaList .list-item')[idx]?.scrollIntoView({block:'nearest'});
   render();
 }
 
+// =====================================================
+//  辺選択・属性編集
+// =====================================================
+function selectEdge(edgeIdx) {
+  if (selAreaIdx == null) return;
+  selEdgeIdx = edgeIdx;
+
+  const panel = document.getElementById('edgeAttrPanel');
+  panel.style.display = 'block';
+  document.getElementById('edgeAttrTitle').textContent = `e${selAreaIdx}-${edgeIdx}`;
+
+  const attr = getEdgeAttr(selAreaIdx, edgeIdx);
+
+  // 幅ボタンの状態
+  ['wNull','wNarrow','wWide'].forEach(id => document.getElementById(id).classList.remove('active'));
+  if (attr.width==='wide')   document.getElementById('wWide').classList.add('active');
+  else if (attr.width==='narrow') document.getElementById('wNarrow').classList.add('active');
+  else document.getElementById('wNull').classList.add('active');
+
+  // シンボルボタンの状態
+  const syms = attr.symbols || [];
+  const cavCount = syms.filter(s => s === 'cav_obstacle').length;
+  const infCount = syms.filter(s => s === 'inf_obstacle').length;
+  [0,1,2].forEach(n => {
+    document.getElementById(`sCav${n}`).className = 'cnt-btn' + (cavCount === n ? ' active-cav' : '');
+    document.getElementById(`sInf${n}`).className = 'cnt-btn' + (infCount === n ? ' active-inf' : '');
+  });
+  document.getElementById('sCavImp').classList.toggle('active', syms.includes('cav_impassable'));
+  document.getElementById('sArt').classList.toggle('active', syms.includes('artillery_penalty'));
+  document.getElementById('sImp').classList.toggle('active', syms.includes('impassable'));
+
+  document.getElementById('pRetreat').checked = attr.canRetreat || false;
+
+  // 辺リストのハイライト
+  document.querySelectorAll('#edgeList .edge-row').forEach(r => {
+    r.classList.toggle('sel-edge', parseInt(r.dataset.ei)===edgeIdx);
+  });
+
+  updateStateUI();
+  render();
+}
+
+function hideEdgeAttrPanel() {
+  document.getElementById('edgeAttrPanel').style.display='none';
+  selEdgeIdx = null;
+}
+
+function setWidth(w) {
+  if (selAreaIdx==null || selEdgeIdx==null) return;
+  getEdgeAttr(selAreaIdx, selEdgeIdx).width = w;
+  selectEdge(selEdgeIdx);  // UI更新
+  refreshEdgeRow(selEdgeIdx);
+  render();
+}
+
+function setSymbolCount(sym, count) {
+  if (selAreaIdx==null || selEdgeIdx==null) return;
+  const attr = getEdgeAttr(selAreaIdx, selEdgeIdx);
+  if (!attr.symbols) attr.symbols = [];
+  // 既存の該当シンボルを全削除し、count個追加
+  attr.symbols = attr.symbols.filter(s => s !== sym);
+  for (let i=0; i<count; i++) attr.symbols.push(sym);
+  selectEdge(selEdgeIdx);
+  refreshEdgeRow(selEdgeIdx);
+  render();
+}
+
+function toggleSymbol(sym) {
+  if (selAreaIdx==null || selEdgeIdx==null) return;
+  const attr = getEdgeAttr(selAreaIdx, selEdgeIdx);
+  if (!attr.symbols) attr.symbols = [];
+  const i = attr.symbols.indexOf(sym);
+  if (i>=0) attr.symbols.splice(i,1);
+  else attr.symbols.push(sym);
+  selectEdge(selEdgeIdx);  // UI更新
+  refreshEdgeRow(selEdgeIdx);
+  render();
+}
+
+function saveEdgeAttr() {
+  if (selAreaIdx==null || selEdgeIdx==null) return;
+  getEdgeAttr(selAreaIdx, selEdgeIdx).canRetreat = document.getElementById('pRetreat').checked;
+  refreshEdgeRow(selEdgeIdx);
+  render();
+}
+
+function refreshEdgeRow(edgeIdx) {
+  const rows = document.querySelectorAll('#edgeList .edge-row');
+  rows.forEach(r => {
+    if (parseInt(r.dataset.ei)===edgeIdx) {
+      const attr = getEdgeAttr(selAreaIdx, edgeIdx);
+      const attrSpan = r.querySelector('.edge-attrs');
+      if (attrSpan) attrSpan.innerHTML = buildEdgeAttrBadges(attr);
+    }
+  });
+}
+
+// =====================================================
+//  道路選択・プロパティ
+// =====================================================
 function selectRoad(idx) {
-  selRoadIdx=idx; selAreaIdx=null;
+  selRoadIdx=idx; selAreaIdx=null; selEdgeIdx=null;
+  hideEdgeAttrPanel();
   updateSidebar();
   const pp=document.getElementById('propPanel'), ep=document.getElementById('edgePanel');
   document.getElementById('areaPropExtra').style.display='none';
@@ -716,6 +1022,7 @@ function saveProp() {
     const a=areas[selAreaIdx];
     a.name=document.getElementById('pName').value;
     a.capacity=parseInt(document.getElementById('pCap').value)||null;
+    a.eastOfObjective=document.getElementById('pEast').checked;
     a.note=document.getElementById('pNote').value;
   } else if (selRoadIdx!=null) {
     const r=roads[selRoadIdx];
@@ -728,7 +1035,8 @@ function saveProp() {
 function deleteArea(idx,e) {
   e.stopPropagation();
   if (!confirm(`「${areas[idx].name}」を削除しますか？`)) return;
-  areas.splice(idx,1); selAreaIdx=null;
+  areas.splice(idx,1); selAreaIdx=null; selEdgeIdx=null;
+  hideEdgeAttrPanel();
   document.getElementById('propPanel').style.display='none';
   document.getElementById('edgePanel').style.display='none';
   rebuildSharedEdges(); updateSidebar(); render();
@@ -746,7 +1054,6 @@ function deleteRoad(idx,e) {
 //  JSON Export / Import
 // =====================================================
 function exportJSON() {
-  // edge_connectionsに道路タイプを付けて出力
   const edgeConns=[];
   const seen=new Set();
   for (const [key,val] of Object.entries(sharedEdgeCache)) {
@@ -757,35 +1064,60 @@ function exportJSON() {
     edgeConns.push({
       edge_a:{area_idx:ai, area:areas[ai]?.name, edge_idx:ei, edge_id:`e${ai}-${ei}`},
       edge_b:{area_idx:val.adj, area:areas[val.adj]?.name, edge_idx:val.adjEi, edge_id:`e${val.adj}-${val.adjEi}`},
-      road_type: rt,
-      mp_cost:   ROAD_MP[rt]
+      road_type: rt, mp_cost: ROAD_MP[rt]
     });
   }
 
   const data={
-    version:3,
+    version:4,
+    meta:{
+      description:'Triomphe à Marengo - map data',
+      generatedAt: new Date().toISOString(),
+      source:'area_editor.html',
+    },
     map:{width:canvas.width,height:canvas.height},
-    areas: areas.map((a,idx)=>({
-      idx, id:a.id, name:a.name, color:a.color, capacity:a.capacity, note:a.note,
-      polygon: a.polygon.map(p=>[Math.round(p.x),Math.round(p.y)]),
-      edges: a.polygon.map((_,ei)=>{
-        const sh=sharedEdgeCache[edgeKey(idx,ei)];
-        const rt=getRoadTypeForEdge(idx,ei);
-        return { id:`e${idx}-${ei}`, road_type:rt, mp_cost:ROAD_MP[rt],
-          shared_with: sh?`e${sh.adj}-${sh.adjEi}`:null,
-          adj_area_idx: sh?sh.adj:null, adj_area_name: sh?areas[sh.adj]?.name:null };
-      })
-    })),
+    areas: areas.map((a,idx)=>{
+      return {
+        idx,
+        id: a.id,
+        name: a.name,
+        historicalName: a.historicalName ?? null,
+        color: a.color,
+        capacity: a.capacity,
+        eastOfObjective: a.eastOfObjective||false,
+        setupZone: a.setupZone ?? null,
+        terrain: a.terrain ?? '',
+        mp_cost: a.mp_cost ?? 1,
+        note: a.note || '',
+        polygon: a.polygon.map(p=>[Math.round(p.x),Math.round(p.y)]),
+        edges: a.polygon.map((_,ei)=>{
+          const sh  = sharedEdgeCache[edgeKey(idx,ei)];
+          const rt  = getRoadTypeForEdge(idx,ei);
+          const attr= (a.edgeAttrs||{})[ei] || { width:null, symbols:[], canRetreat:false };
+          return {
+            id: `e${idx}-${ei}`,
+            shared_with: sh ? `e${sh.adj}-${sh.adjEi}` : null,
+            adj_area_idx:  sh ? sh.adj  : null,
+            adj_area_name: sh ? (areas[sh.adj]?.name||null) : null,
+            road_type: rt,
+            mp_cost:   ROAD_MP[rt],
+            width:     attr.width  ?? null,
+            symbols:   attr.symbols || [],
+            can_retreat_through: attr.canRetreat || false,
+          };
+        }),
+      };
+    }),
     roads: roads.map((r,i)=>({
       id:r.id, name:r.name, type:r.type, mp_cost:ROAD_MP[r.type],
       points: r.points.map(p=>[Math.round(p.x),Math.round(p.y)])
     })),
-    edge_connections: edgeConns
+    edge_connections: edgeConns,
   };
 
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download='marengo_areas.json'; a.click();
+  const a2=document.createElement('a'); a2.href=URL.createObjectURL(blob);
+  a2.download='map.json'; a2.click();
 }
 
 function importJSON() { document.getElementById('jsonInput').click(); }
@@ -795,9 +1127,22 @@ function onJSONFile(e) {
   reader.onload=ev=>{
     try {
       const d=JSON.parse(ev.target.result);
-      areas=(d.areas||[]).map(a=>({...a, polygon:(a.polygon||[]).map(p=>({x:p[0],y:p[1]}))}));
+      areas=(d.areas||[]).map(a=>({
+        ...a,
+        eastOfObjective: a.eastOfObjective||false,
+        polygon: (a.polygon||[]).map(p=>({x:p[0],y:p[1]})),
+        // 辺属性をインポート
+        edgeAttrs: Object.fromEntries(
+          (a.edges||[]).map((edge,ei)=>[ei, {
+            width:      edge.width ?? null,
+            symbols:    edge.symbols || [],
+            canRetreat: edge.can_retreat_through || false,
+          }])
+        ),
+      }));
       roads=(d.roads||[]).map(r=>({...r, points:(r.points||[]).map(p=>({x:p[0],y:p[1]}))}));
-      aColorIdx=areas.length; selAreaIdx=null; selRoadIdx=null;
+      aColorIdx=areas.length; selAreaIdx=null; selEdgeIdx=null; selRoadIdx=null;
+      hideEdgeAttrPanel();
       document.getElementById('propPanel').style.display='none';
       document.getElementById('edgePanel').style.display='none';
       rebuildSharedEdges(); updateSidebar(); render();

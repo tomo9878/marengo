@@ -137,6 +137,16 @@ function hasCavalryObstacle(localeIdx, edgeIdx) {
 }
 
 /**
+ * アプローチが騎兵突撃不可か判定する。
+ * @param {number} localeIdx
+ * @param {number} edgeIdx
+ * @returns {boolean}
+ */
+function isCavalryImpassable(localeIdx, edgeIdx) {
+  return getApproachSymbols(localeIdx, edgeIdx).includes('cav_impassable');
+}
+
+/**
  * アプローチに歩兵/騎兵ペナルティがあるか判定する。
  * @param {number} localeIdx
  * @param {number} edgeIdx
@@ -525,6 +535,7 @@ module.exports = {
   getApproachSymbols,
   isImpassable,
   hasCavalryObstacle,
+  isCavalryImpassable,
   hasInfCavPenalty,
   hasArtilleryPenalty,
 

@@ -76,24 +76,24 @@ function periodicMoraleUpdate(round, state) {
  */
 function investMorale(side, localeId, count, state) {
   let next = cloneState(state);
+  if (!next.moraleTokensPlacedThisTurn) next.moraleTokensPlacedThisTurn = [];
 
   for (let i = 0; i < count; i++) {
     if (next.morale[side].uncommitted > 0) {
       next.morale[side].uncommitted--;
       next.moraleTokens.push({ side, localeId });
+      next.moraleTokensPlacedThisTurn.push({ side, localeId });
     } else {
-      // uncommitted 不足: 相手のマップトークンを奪う
-      const opponent = side === SIDES.FRANCE ? SIDES.AUSTRIA : SIDES.FRANCE;
-      const oppTokens = next.moraleTokens.filter(t => t.side === opponent);
-      if (oppTokens.length > 0) {
-        // 相手が選択する（ここではゲーム上の優先順位に従い、最初のトークンを除去）
-        const tokenToRemove = oppTokens[0];
-        const idx = next.moraleTokens.indexOf(tokenToRemove);
+      // uncommitted 不足: 敗者（side）の既存マップトークンを新しいロケールへ移動
+      // ルール: 相手プレイヤーが選択できるが、ここでは先頭を自動選択
+      const sideTokens = next.moraleTokens.filter(t => t.side === side);
+      if (sideTokens.length > 0) {
+        const idx = next.moraleTokens.indexOf(sideTokens[0]);
         next.moraleTokens.splice(idx, 1);
-        // 除去した分を投入
         next.moraleTokens.push({ side, localeId });
+        next.moraleTokensPlacedThisTurn.push({ side, localeId });
       }
-      // それも不足の場合は無視（ゲーム終了条件になるはず）
+      // トークンもない → 投入不可（ゲーム終了条件になるはず）
     }
   }
 
@@ -121,16 +121,10 @@ function reduceMorale(side, amount, state) {
   next.morale[side].uncommitted -= fromUncommitted;
   remaining -= fromUncommitted;
 
-  // 次にマップトークンから除去（どのロケールかは敗者が選ぶ。ここでは先頭から）
-  while (remaining > 0) {
-    const ownTokens = next.moraleTokens.filter(t => t.side === side);
-    if (ownTokens.length === 0) break;
-
-    // 敗者の選択（デフォルトは最初のトークン）
-    const tokenToRemove = ownTokens[0];
-    const idx = next.moraleTokens.indexOf(tokenToRemove);
-    next.moraleTokens.splice(idx, 1);
-    remaining--;
+  // マップトークンの除去が必要な場合 → 相手プレイヤーが選ぶ（pendingMoraleRemovals に積む）
+  if (remaining > 0) {
+    if (!next.pendingMoraleRemovals) next.pendingMoraleRemovals = [];
+    next.pendingMoraleRemovals.push({ side, amount: remaining });
   }
 
   return next;
@@ -161,9 +155,10 @@ function moraleCleanup(activePlayer, round, state) {
     const toReturn = [];
 
     for (const token of next.moraleTokens.filter(t => t.side === side)) {
-      // 1. 敵占拠ロケール
+      // 1. 敵占拠ロケール（現在または最後に敵がいたロケール）
       const occupant = map.getLocaleOccupant(token.localeId, next);
-      if (occupant === enemy) {
+      const lastOccupant = (next.localeLastOccupant ?? {})[token.localeId];
+      if (occupant === enemy || (occupant === null && lastOccupant === enemy)) {
         toRemove.push(token);
         continue;
       }
@@ -195,22 +190,57 @@ function moraleCleanup(activePlayer, round, state) {
     }
   }
 
-  // 3. フランスのみ（ラウンド11未満: 4:00PM前）: 1トークン返還
-  // ラウンド11以降は不可（4:00PMから）
-  if (activePlayer === SIDES.FRANCE && round < 11) {
-    const franceTokens = next.moraleTokens.filter(t => t.side === SIDES.FRANCE);
-    if (franceTokens.length > 0) {
-      // 最初の1トークンを返還（このターン移動していないものを選ぶ、ここでは先頭）
-      const token = franceTokens[0];
-      const idx = next.moraleTokens.indexOf(token);
-      if (idx !== -1) {
-        next.moraleTokens.splice(idx, 1);
-        next.morale[SIDES.FRANCE].uncommitted++;
-      }
+  // 3. フランス特権（ラウンド11未満）: TurnManager のインタラプションで処理するためここでは省略
+
+  return next;
+}
+
+// ---------------------------------------------------------------------------
+// フランス回収可能トークン
+// ---------------------------------------------------------------------------
+
+/**
+ * フランスがこのターン回収できるトークンの一覧を返す。
+ * 「このターン投入したもの」および「直前のオーストリアターンに移動されたもの」は除外する。
+ * @param {object} state
+ * @returns {Array<{ localeId: number, count: number }>}
+ */
+function getRecoverableTokens(state) {
+  if (!state || !state.moraleTokens) return [];
+  const placed = state.moraleTokensPlacedThisTurn || [];
+  const placedByEnemy = state.moraleTokensPlacedByEnemyLastTurn || [];
+
+  // 除外対象 = このターン置いたもの + 直前の相手ターンに置かれたもの（フランス分のみ）
+  const excludeByLocale = {};
+  for (const p of [...placed, ...placedByEnemy]) {
+    if (p.side === SIDES.FRANCE) {
+      excludeByLocale[p.localeId] = (excludeByLocale[p.localeId] || 0) + 1;
     }
   }
 
-  return next;
+  // このターン置いたフランストークンをロケール別にカウント（互換性のため変数名維持）
+  const placedCount = excludeByLocale;
+
+  // マップ上のフランストークンをロケール別にカウント
+  const totalCount = {};
+  for (const t of state.moraleTokens) {
+    if (t.side === SIDES.FRANCE) {
+      totalCount[t.localeId] = (totalCount[t.localeId] || 0) + 1;
+    }
+  }
+
+  // 回収可能 = 合計 − このターン置いた数
+  const result = [];
+  for (const [localeIdStr, total] of Object.entries(totalCount)) {
+    const localeId = Number(localeIdStr);
+    const thisPlaced = placedCount[localeId] || 0;
+    const recoverable = total - thisPlaced;
+    if (recoverable > 0) {
+      result.push({ localeId, count: recoverable });
+    }
+  }
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -243,4 +273,5 @@ module.exports = {
   checkMoraleCollapse,
   getTotalMorale: _getTotalMorale,
   getMapTokens,
+  getRecoverableTokens,
 };
