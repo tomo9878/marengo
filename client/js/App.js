@@ -732,8 +732,8 @@ function _connectSolo(gameId) {
       },
 
       onState(gs, la) {
-        // legalActionsがある（= このサイドのターン）ときだけ表示を更新
         if (la && la.length > 0) {
+          // legalActionsあり = このサイドのターン（通常ケース）
           serverLegalActions = la;
           myState.side = gs.controlToken?.holder || myState.side;
           actionPanel.clearInterruptionMode();
@@ -742,11 +742,18 @@ function _connectSolo(gameId) {
           updateSoloIndicator();
         } else if (gs.pendingInterruption) {
           // インタラプション中: controlToken.holderがconnSideのときだけ更新
-          // （重複更新を避けるため一方のみ）
           if (gs.controlToken?.holder === connSide) {
             actionPanel.clearInterruptionMode();
             applyState(gs);
           }
+        } else if (gs.activePlayer === connSide) {
+          // la=[] かつ pendingInterruption なし だが自分のターン
+          // （全駒アクション済み・CP不足等でlegalActionsが空のケース）
+          // → 自サイドのstate（フルpiece情報）でOffMapPanelを必ず更新する
+          serverLegalActions = [];
+          myState.side = gs.controlToken?.holder || myState.side;
+          applyState(gs);
+          updateSoloIndicator();
         }
       },
 
