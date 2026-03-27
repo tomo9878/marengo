@@ -151,6 +151,11 @@ function createInitialState() {
     // 同一横断を道路行軍急襲に2回以上使用禁止
     roadMarchRaidCrossings: [],
 
+    // --- 継続行軍資格のある騎兵 ---
+    // { [pieceId]: { fromLocaleId: number | null } }  ターン開始時にリセット
+    // 道路行軍後: fromLocaleId = 出発ロケール、悪路行軍後: fromLocaleId = null
+    continuationEligiblePieces: {},
+
     // --- ロケールの最後の占拠側 ---
     // { [localeId]: side }  ゲーム全体を通じて維持（リセットなし）
     // 士気クリーンアップで「最後に敵がいた」条件に使用
@@ -364,6 +369,7 @@ function resetCommandPoints(state) {
   next.roadMarchBlockedLocales = [];
   next.raidHistoryThisTurn = [];
   next.roadMarchRaidCrossings = [];
+  next.continuationEligiblePieces = {};
   // 砲撃予約は前のターンのものを引き継ぐ（完遂判定はTurnManagerで行う）
   return next;
 }

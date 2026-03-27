@@ -321,6 +321,31 @@ function executeMarch(action, state) {
     }
   }
 
+  // 継続行軍資格の更新
+  if (!next.continuationEligiblePieces) next.continuationEligiblePieces = {};
+  if (action.type === 'road_march' || action.type === 'cross_country_march') {
+    // 騎兵がリザーブへ移動した場合（ロケール移動を伴う場合のみ）
+    for (const pid of pieceIds) {
+      const orig = state.pieces[pid];
+      const moved = next.pieces[pid];
+      if (
+        moved &&
+        moved.type === 'cavalry' &&
+        moved.position === 'reserve' &&
+        moved.localeId !== orig.localeId
+      ) {
+        next.continuationEligiblePieces[pid] = {
+          fromLocaleId: action.type === 'road_march' ? orig.localeId : null,
+        };
+      }
+    }
+  } else if (action.type === 'continuation_march') {
+    // 継続行軍実行後は資格を消去
+    for (const pid of pieceIds) {
+      delete next.continuationEligiblePieces[pid];
+    }
+  }
+
   return { newState: next, interruption: null };
 }
 
@@ -797,8 +822,11 @@ function processAssaultDefLeaders(response, state) {
   let next = cloneState(state);
 
   let defLeaderIds = response.leaderIds ?? [];
-  // cav_impassable: 騎兵は防御先導駒に選択不可
-  if (map.isCavalryImpassable(ctx.defenseLocaleId, ctx.defenseEdgeIdx)) {
+  // cav_impassable または cav_obstacle: 騎兵は防御先導駒に選択不可
+  if (
+    map.isCavalryImpassable(ctx.defenseLocaleId, ctx.defenseEdgeIdx) ||
+    map.hasCavalryObstacle(ctx.defenseLocaleId, ctx.defenseEdgeIdx)
+  ) {
     defLeaderIds = defLeaderIds.filter(id => next.pieces[id]?.type !== 'cavalry');
   }
   const updatedCtx = { ...ctx, defLeaderIds };
@@ -825,6 +853,7 @@ function processAssaultAtkLeaders(response, state) {
 
   let atkLeaderIds = response.leaderIds ?? [];
   // cav_impassable: 騎兵は攻撃先導駒に選択不可
+  // ※ cav_obstacle は攻撃側にペナルティを与えるが先導駒選択を禁じない（calculateAssaultResult で処理）
   if (map.isCavalryImpassable(ctx.defenseLocaleId, ctx.defenseEdgeIdx)) {
     atkLeaderIds = atkLeaderIds.filter(id => next.pieces[id]?.type !== 'cavalry');
   }
@@ -907,8 +936,11 @@ function processAssaultCounter(response, state) {
   let next = cloneState(state);
 
   let counterIds = response.counterIds ?? [];
-  // cav_impassable: 騎兵はカウンター駒に選択不可
-  if (map.isCavalryImpassable(ctx.defenseLocaleId, ctx.defenseEdgeIdx)) {
+  // cav_impassable または cav_obstacle: 騎兵はカウンター駒に選択不可
+  if (
+    map.isCavalryImpassable(ctx.defenseLocaleId, ctx.defenseEdgeIdx) ||
+    map.hasCavalryObstacle(ctx.defenseLocaleId, ctx.defenseEdgeIdx)
+  ) {
     counterIds = counterIds.filter(id => next.pieces[id]?.type !== 'cavalry');
   }
 

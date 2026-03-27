@@ -790,12 +790,19 @@ function getLegalActions(pieceId, state) {
   if (piece.side !== state.controlToken.holder) return []; // 制御権チェック
   if (state.pendingInterruption) return []; // インタラプション中は通常アクション不可
 
+  // 継続行軍: 道路行軍または悪路行軍でリザーブに移動した騎兵のみ
+  const contInfo = (state.continuationEligiblePieces ?? {})[pieceId];
+  const continuationMoves = contInfo !== undefined
+    ? getLegalContinuationMoves(piece, state, contInfo.fromLocaleId ?? null)
+    : [];
+
   return [
     ...getLegalCrossCountryMoves(piece, state),
     ...getLegalRoadMoves(piece, state),
     ...getLegalRaids(piece, state),
     ...getLegalAssaults(piece, state),
     ...getLegalBombardments(piece, state),
+    ...continuationMoves,
   ];
 }
 
