@@ -84,11 +84,12 @@ function investMorale(side, localeId, count, state) {
       next.moraleTokens.push({ side, localeId });
       next.moraleTokensPlacedThisTurn.push({ side, localeId });
     } else {
-      // uncommitted 不足: 敗者（side）の既存マップトークンを新しいロケールへ移動
-      // ルール: 相手プレイヤーが選択できるが、ここでは先頭を自動選択
-      const sideTokens = next.moraleTokens.filter(t => t.side === side);
-      if (sideTokens.length > 0) {
-        const idx = next.moraleTokens.indexOf(sideTokens[0]);
+      // uncommitted 不足: 相手陣営のマップトークンを奪って自陣営のトークンに変換
+      // （先頭を自動選択）
+      const opponentSide = side === SIDES.FRANCE ? SIDES.AUSTRIA : SIDES.FRANCE;
+      const opponentTokens = next.moraleTokens.filter(t => t.side === opponentSide);
+      if (opponentTokens.length > 0) {
+        const idx = next.moraleTokens.indexOf(opponentTokens[0]);
         next.moraleTokens.splice(idx, 1);
         next.moraleTokens.push({ side, localeId });
         next.moraleTokensPlacedThisTurn.push({ side, localeId });
@@ -121,10 +122,12 @@ function reduceMorale(side, amount, state) {
   next.morale[side].uncommitted -= fromUncommitted;
   remaining -= fromUncommitted;
 
-  // マップトークンの除去が必要な場合 → 相手プレイヤーが選ぶ（pendingMoraleRemovals に積む）
-  if (remaining > 0) {
-    if (!next.pendingMoraleRemovals) next.pendingMoraleRemovals = [];
-    next.pendingMoraleRemovals.push({ side, amount: remaining });
+  // uncommitted が尽きたらマップトークンから即時除去（先頭から自動選択）
+  while (remaining > 0) {
+    const idx = next.moraleTokens.findIndex(t => t.side === side);
+    if (idx === -1) break;
+    next.moraleTokens.splice(idx, 1);
+    remaining--;
   }
 
   return next;

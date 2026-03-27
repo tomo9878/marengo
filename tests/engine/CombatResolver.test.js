@@ -182,7 +182,8 @@ describe('calculateAssaultResult', () => {
     state.pieces['AU-INF-1'] = makePiece('AU-INF-1', { localeId: 1, position: 'approach_2', strength: 1 });
     state.pieces['AU-INF-2'] = makePiece('AU-INF-2', { localeId: 1, position: 'reserve', strength: 2 });
 
-    // result = 3 - 0 (penalty) - 1 (def leader) - 2 (counter) = 0
+    // locale 1 のエッジ 2 には inf_obstacle シンボルがあり歩兵攻撃に -1 ペナルティ
+    // result = 3 - 1 (inf_obstacle penalty) - 1 (def leader) - 2 (counter) = -1
     const result = combat.calculateAssaultResult(
       {
         atkLeaderIds: ['FR-INF-1'],
@@ -194,13 +195,15 @@ describe('calculateAssaultResult', () => {
       state
     );
 
-    expect(result.result).toBe(0);
+    expect(result.result).toBe(-1);
     expect(result.atkWins).toBe(false);
   });
 
   test('result >= 1 means attacker wins', () => {
     const state = createMinimalState();
-    state.pieces['FR-INF-1'] = makePiece('FR-INF-1', { localeId: 2, position: 'approach_1', strength: 3 });
+    // locale 1 のエッジ 2 に inf_obstacle (-1 ペナルティ) があるため強度 4 が必要
+    // result = 4 - 1 (penalty) - 2 (def leader) = 1
+    state.pieces['FR-INF-1'] = makePiece('FR-INF-1', { localeId: 2, position: 'approach_1', strength: 4 });
     state.pieces['AU-INF-1'] = makePiece('AU-INF-1', { localeId: 1, position: 'approach_2', strength: 2 });
 
     const result = combat.calculateAssaultResult(

@@ -21,8 +21,8 @@ describe('getLocale', () => {
   test('area 2 has expected name', () => {
     const area = map.getLocale(2);
     expect(area.idx).toBe(2);
-    // エリア_3
-    expect(area.name).toContain('エリア_3');
+    // map.json の実際の名称
+    expect(area.name).toContain('エリア_2');
   });
 });
 

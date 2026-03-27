@@ -729,36 +729,7 @@ function processDefenseResponse(response, state) {
       return { newState: next, interruption: null };
     }
 
-    // 攻撃側がリザーブから攻撃した場合、アプローチへの移動オプション
-    const attackFromReserve = ctx.attackerPieceIds.some(
-      pid => next.pieces[pid] && next.pieces[pid].position === 'reserve'
-    );
-    if (attackFromReserve) {
-      // 攻撃側アプローチ: 攻撃者ロケール側のエッジを特定
-      const firstAtkPiece = next.pieces[ctx.attackerPieceIds[0]];
-      const atkLocale = firstAtkPiece ? firstAtkPiece.localeId : null;
-      const atkEdge = atkLocale != null
-        ? map.getOppositeApproach(ctx.targetLocaleId, ctx.defenseEdgeIdx)
-        : null;
-
-      if (atkEdge && atkEdge.localeIdx === atkLocale) {
-        const approachInterruption = {
-          type: INTERRUPTION.ATTACKER_APPROACH,
-          waitingFor: atkSide,
-          context: {
-            attackerPieceIds: ctx.attackerPieceIds.filter(
-              pid => next.pieces[pid] && next.pieces[pid].position === 'reserve'
-            ),
-            attackLocaleId: atkLocale,
-            attackEdgeIdx: atkEdge.edgeIdx,
-          },
-        };
-        next.pendingInterruption = approachInterruption;
-        next.controlToken = { holder: atkSide, reason: INTERRUPTION.ATTACKER_APPROACH };
-        return { newState: next, interruption: approachInterruption };
-      }
-    }
-
+    // 通常急襲: 防御側勝利 → 攻撃側はリザーブに留まる。インタラプションなし。
     return { newState: next, interruption: null };
   } else {
     // 攻撃側勝ち: 攻撃側駒が targetLocale へ移動（resolveRaid 内で処理済み）

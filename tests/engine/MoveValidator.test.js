@@ -425,7 +425,9 @@ describe('getLegalBombardments', () => {
       state.pendingBombardment = { artilleryId: 'FR-ART-1', targetLocaleId: 1 };
 
       const bombards = validator.getLegalBombardments(state.pieces['FR-ART-1'], state);
-      expect(bombards.length).toBe(0);
+      // 宣言済みの砲撃はキャンセルアクション1件のみ返す
+      expect(bombards.length).toBe(1);
+      expect(bombards[0].type).toBe('bombardment_cancel');
     }
   });
 });
