@@ -798,17 +798,24 @@ function _connectSolo(gameId) {
       onJoined(s, gId, gs) {
         joinedCount++;
         myState.gameId = gId;
-        // 初回接続完了でモーダルを閉じる
         if (joinedCount === 1) {
           connectModal.classList.add('hidden');
-          myState.side = gs.controlToken?.holder || 'france';
-          applyState(gs);
-          updateSoloIndicator();
           infoPanel.addLog(`ソロモード: ${connSide}側 接続中...`);
         } else {
           infoPanel.addLog('ソロモード開始 — 両陣営が接続されました');
         }
         if (savePanel) savePanel.gameId = gId;
+
+        // 制御権を持つサイドの接続からstateを適用する。
+        // そのサイドのJOINED stateはフル情報（strength等）を持つため、
+        // France sanitized stateによるOffMapPanel空白を防ぐ。
+        // 最初の接続か、またはこの接続が制御権サイドの場合にのみ適用。
+        const activeHolder = gs.controlToken?.holder || 'france';
+        if (joinedCount === 1 || connSide === activeHolder) {
+          myState.side = activeHolder;
+          applyState(gs);
+          updateSoloIndicator();
+        }
       },
 
       onState(gs, la) {
