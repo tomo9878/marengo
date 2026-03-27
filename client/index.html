@@ -478,6 +478,41 @@
       background: #0a0f1e;
     }
 
+    #btnCreateGame {
+      display: block;
+      width: 100%;
+      padding: 11px;
+      background: var(--fr-color);
+      border: none;
+      border-radius: 4px;
+      color: #fff;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    #btnCreateGame:hover:not(:disabled) { background: #2a5ba5; }
+    #btnCreateGame:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    #createError {
+      margin-top: 8px;
+      color: var(--accent-r);
+      font-size: 12px;
+      text-align: center;
+      min-height: 16px;
+    }
+
+    #displayGameId {
+      font-size: 24px;
+      font-weight: bold;
+      color: var(--accent-g);
+      text-align: center;
+      letter-spacing: 6px;
+      padding: 8px 0;
+      font-family: monospace;
+    }
+
     #connectBtn {
       display: block;
       width: 100%;
@@ -596,25 +631,44 @@
 <div id="connectModal">
   <div class="modal-box">
     <h1>Triomphe à Marengo</h1>
-    <div class="modal-field">
-      <label>ゲームID</label>
-      <input id="inputGameId" type="text" placeholder="例: game001" autocomplete="off" />
+
+    <!-- ① スタート画面（新規作成 / セーブ再開） -->
+    <div id="startSection">
+      <button id="btnCreateGame">ゲームを作成</button>
+      <div id="createError"></div>
+      <hr style="border-color:#0f3460;margin:16px 0 12px;" />
+      <div style="font-size:12px;color:#aaa;margin-bottom:8px;">保存済みゲームを再開</div>
+      <button id="btnShowSaveList" style="display:block;width:100%;padding:7px;background:#0f3460;border:1px solid #1a4a80;border-radius:4px;color:#eee;font-size:12px;cursor:pointer;">セーブ一覧を確認</button>
+      <div id="saveListContainer" style="display:none;margin-top:10px;max-height:160px;overflow-y:auto;"></div>
     </div>
-    <div class="modal-field">
-      <label>サイド</label>
-      <select id="inputSide">
-        <option value="france">France (フランス)</option>
-        <option value="austria">Austria (オーストリア)</option>
-        <option value="spectator">観戦（両軍全情報・操作不可）</option>
-        <option value="solo">ソロモード（両陣営操作）</option>
-      </select>
+
+    <!-- ② 接続画面（作成後 or URLからの参加） -->
+    <div id="joinSection" style="display:none">
+      <div class="modal-field">
+        <label>ゲームID</label>
+        <div id="displayGameId">—</div>
+      </div>
+      <div id="shareUrlArea" style="display:none;margin-bottom:12px;">
+        <label style="display:block;font-size:12px;color:#aaa;margin-bottom:4px;">招待リンク（相手に共有してください）</label>
+        <div style="display:flex;gap:6px;">
+          <input id="shareUrlInput" type="text" readonly style="flex:1;padding:6px 8px;background:#0a0f1e;border:1px solid var(--border);border-radius:4px;color:var(--accent-g);font-size:11px;outline:none;" />
+          <button id="btnCopyUrl" style="padding:6px 10px;background:#0f3460;border:1px solid #1a4a80;border-radius:4px;color:#eee;font-size:11px;cursor:pointer;white-space:nowrap;">コピー</button>
+        </div>
+        <div id="copyFeedback" style="font-size:10px;color:var(--accent-g);min-height:14px;margin-top:2px;text-align:right;"></div>
+      </div>
+      <div class="modal-field">
+        <label>サイド</label>
+        <select id="inputSide">
+          <option value="france">France (フランス)</option>
+          <option value="austria">Austria (オーストリア)</option>
+          <option value="spectator">観戦（両軍全情報・操作不可）</option>
+          <option value="solo">ソロモード（両陣営操作）</option>
+        </select>
+      </div>
+      <button id="connectBtn">接続</button>
+      <div id="connectError"></div>
+      <button id="btnBackToStart" style="display:block;width:100%;margin-top:8px;padding:6px;background:transparent;border:1px solid #0f3460;border-radius:4px;color:#888;font-size:12px;cursor:pointer;">← 戻る</button>
     </div>
-    <button id="connectBtn">接続</button>
-    <div id="connectError"></div>
-    <hr style="border-color:#0f3460;margin:16px 0 12px;" />
-    <div style="font-size:12px;color:#aaa;margin-bottom:8px;">保存済みゲームを再開</div>
-    <button id="btnShowSaveList" style="display:block;width:100%;padding:7px;background:#0f3460;border:1px solid #1a4a80;border-radius:4px;color:#eee;font-size:12px;cursor:pointer;">セーブ一覧を確認</button>
-    <div id="saveListContainer" style="display:none;margin-top:10px;max-height:160px;overflow-y:auto;"></div>
   </div>
 </div>
 

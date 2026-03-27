@@ -42,7 +42,16 @@ let soloConnections = null; // { france: Connection, austria: Connection }
 // ---------------------------------------------------------------------------
 
 const connectModal      = document.getElementById('connectModal');
-const inputGameId       = document.getElementById('inputGameId');
+const startSection      = document.getElementById('startSection');
+const joinSection       = document.getElementById('joinSection');
+const btnCreateGame     = document.getElementById('btnCreateGame');
+const createError       = document.getElementById('createError');
+const displayGameId     = document.getElementById('displayGameId');
+const shareUrlArea      = document.getElementById('shareUrlArea');
+const shareUrlInput     = document.getElementById('shareUrlInput');
+const btnCopyUrl        = document.getElementById('btnCopyUrl');
+const copyFeedback      = document.getElementById('copyFeedback');
+const btnBackToStart    = document.getElementById('btnBackToStart');
 const inputSide         = document.getElementById('inputSide');
 const connectBtn        = document.getElementById('connectBtn');
 const connectError      = document.getElementById('connectError');
@@ -52,6 +61,9 @@ const btnShowSaveList   = document.getElementById('btnShowSaveList');
 const saveListContainer = document.getElementById('saveListContainer');
 const soloIndicatorEl   = document.getElementById('soloIndicator');
 const soloActiveSideEl  = document.getElementById('soloActiveSide');
+
+// Currently pending game ID (set by create or URL param)
+let pendingGameId = null;
 
 // ---------------------------------------------------------------------------
 // Initialization
@@ -112,11 +124,38 @@ async function init() {
     }
   });
 
-  // Connect modal
+  // Connect modal — create game
+  if (btnCreateGame) {
+    btnCreateGame.addEventListener('click', handleCreateGame);
+  }
+
+  // Connect modal — back to start
+  if (btnBackToStart) {
+    btnBackToStart.addEventListener('click', () => {
+      pendingGameId = null;
+      if (startSection) startSection.style.display = '';
+      if (joinSection) joinSection.style.display = 'none';
+    });
+  }
+
+  // Connect modal — copy share URL
+  if (btnCopyUrl && shareUrlInput) {
+    btnCopyUrl.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(shareUrlInput.value);
+        if (copyFeedback) {
+          copyFeedback.textContent = 'コピーしました！';
+          setTimeout(() => { if (copyFeedback) copyFeedback.textContent = ''; }, 2000);
+        }
+      } catch {
+        shareUrlInput.select();
+        document.execCommand('copy');
+      }
+    });
+  }
+
+  // Connect modal — connect button
   connectBtn.addEventListener('click', handleConnect);
-  inputGameId.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') handleConnect();
-  });
 
   // Save panel (created with no gameId initially; updated after connect)
   savePanel = new SavePanel(null, () => {});
@@ -126,7 +165,7 @@ async function init() {
     });
   }
 
-  // Resume from save: show save list in connect modal
+  // Resume from save: show save list, clicking an entry goes to join section
   if (btnShowSaveList) {
     btnShowSaveList.addEventListener('click', async () => {
       if (!saveListContainer) return;
@@ -148,7 +187,7 @@ async function init() {
           row.innerHTML = `<span style="font-size:11px;color:#ccc;">${entry.gameId} — ${savedAt}</span>
             <span style="font-size:10px;color:#4ecca3;margin-left:6px;">選択</span>`;
           row.addEventListener('click', () => {
-            if (inputGameId) inputGameId.value = entry.gameId;
+            showJoinSection(entry.gameId, false);
             saveListContainer.style.display = 'none';
           });
           saveListContainer.appendChild(row);
@@ -164,7 +203,7 @@ async function init() {
   const urlGameId = urlParams.get('gameId');
   const urlSolo   = urlParams.get('solo') === 'true';
   const urlSide   = urlParams.get('side');
-  if (urlGameId && inputGameId) inputGameId.value = urlGameId;
+  if (urlGameId) showJoinSection(urlGameId, false);
   if (urlSolo && inputSide) inputSide.value = 'solo';
   else if (urlSide && inputSide) inputSide.value = urlSide;
 
@@ -610,13 +649,54 @@ function handleLocaleClick(localeIdx) {
 // Connection
 // ---------------------------------------------------------------------------
 
+/**
+ * Show the join section with a given gameId.
+ * @param {string} gameId
+ * @param {boolean} showShare - whether to display the share URL area
+ */
+function showJoinSection(gameId, showShare) {
+  pendingGameId = gameId;
+  if (displayGameId) displayGameId.textContent = gameId;
+  if (shareUrlArea) {
+    if (showShare) {
+      if (shareUrlInput) shareUrlInput.value = `${location.origin}/?gameId=${gameId}`;
+      shareUrlArea.style.display = '';
+    } else {
+      shareUrlArea.style.display = 'none';
+    }
+  }
+  if (startSection) startSection.style.display = 'none';
+  if (joinSection) joinSection.style.display = '';
+}
+
+/**
+ * POST /games → get a new auto-generated game ID, then show join section.
+ */
+async function handleCreateGame() {
+  if (createError) createError.textContent = '';
+  if (btnCreateGame) btnCreateGame.disabled = true;
+  try {
+    const resp = await fetch('/games', { method: 'POST' });
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      throw new Error(body.error || `HTTP ${resp.status}`);
+    }
+    const { gameId } = await resp.json();
+    showJoinSection(gameId, true);
+  } catch (e) {
+    if (createError) createError.textContent = `エラー: ${e.message}`;
+  } finally {
+    if (btnCreateGame) btnCreateGame.disabled = false;
+  }
+}
+
 function handleConnect() {
-  const gameId = inputGameId.value.trim();
+  const gameId = pendingGameId;
   const side   = inputSide.value;
-  connectError.textContent = '';
+  if (connectError) connectError.textContent = '';
 
   if (!gameId) {
-    connectError.textContent = 'ゲームIDを入力してください';
+    if (connectError) connectError.textContent = 'ゲームIDがありません';
     return;
   }
 

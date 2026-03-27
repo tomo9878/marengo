@@ -106,4 +106,82 @@ describe('SaveManager', () => {
     // saves dir may have other files, but result should be an array
     expect(Array.isArray(saves)).toBe(true);
   });
+
+  // ── saveExists ───────────────────────────────────────────────────────────
+
+  test('saveExists returns true when save file exists', () => {
+    const state = makeTestState();
+    SaveManager.saveGame(TEST_GAME_ID, state);
+    expect(SaveManager.saveExists(TEST_GAME_ID)).toBe(true);
+  });
+
+  test('saveExists returns false when save file does not exist', () => {
+    expect(SaveManager.saveExists('__never_saved_xyz__')).toBe(false);
+  });
+
+  // ── cleanupOldSaves ──────────────────────────────────────────────────────
+
+  test('cleanupOldSaves deletes files older than maxAgeMs', () => {
+    const state = makeTestState();
+    SaveManager.saveGame(TEST_GAME_ID, state);
+
+    // Backdate the savedAt to 2 days ago
+    const filePath = path.join(SaveManager.SAVES_DIR, `${TEST_GAME_ID}.json`);
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    raw.savedAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    fs.writeFileSync(filePath, JSON.stringify(raw), 'utf8');
+
+    const deleted = SaveManager.cleanupOldSaves(24 * 60 * 60 * 1000);
+    expect(deleted).toBeGreaterThanOrEqual(1);
+    expect(fs.existsSync(filePath)).toBe(false);
+  });
+
+  test('cleanupOldSaves keeps files newer than maxAgeMs', () => {
+    const state = makeTestState();
+    SaveManager.saveGame(TEST_GAME_ID, state);
+
+    const deleted = SaveManager.cleanupOldSaves(24 * 60 * 60 * 1000);
+    expect(deleted).toBe(0);
+
+    const filePath = path.join(SaveManager.SAVES_DIR, `${TEST_GAME_ID}.json`);
+    expect(fs.existsSync(filePath)).toBe(true);
+  });
+
+  // ── cleanupOldLogs ───────────────────────────────────────────────────────
+
+  test('cleanupOldLogs deletes log files older than maxAgeMs', () => {
+    // Create a test log file with an old mtime
+    const logFile = path.join(SaveManager.LOGS_DIR, '__test_log__.log');
+    fs.writeFileSync(logFile, 'test log', 'utf8');
+    // Backdate mtime by 8 days
+    const oldTime = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    fs.utimesSync(logFile, oldTime, oldTime);
+
+    const deleted = SaveManager.cleanupOldLogs(7 * 24 * 60 * 60 * 1000);
+    expect(deleted).toBeGreaterThanOrEqual(1);
+    expect(fs.existsSync(logFile)).toBe(false);
+  });
+
+  test('cleanupOldLogs keeps log files newer than maxAgeMs', () => {
+    const logFile = path.join(SaveManager.LOGS_DIR, '__test_log_new__.log');
+    fs.writeFileSync(logFile, 'test log', 'utf8');
+
+    try {
+      const deleted = SaveManager.cleanupOldLogs(7 * 24 * 60 * 60 * 1000);
+      expect(deleted).toBe(0);
+      expect(fs.existsSync(logFile)).toBe(true);
+    } finally {
+      try { fs.unlinkSync(logFile); } catch { /* ignore */ }
+    }
+  });
+
+  // ── runCleanup ───────────────────────────────────────────────────────────
+
+  test('runCleanup returns counts object', () => {
+    const result = SaveManager.runCleanup();
+    expect(result).toHaveProperty('savesDeleted');
+    expect(result).toHaveProperty('logsDeleted');
+    expect(typeof result.savesDeleted).toBe('number');
+    expect(typeof result.logsDeleted).toBe('number');
+  });
 });

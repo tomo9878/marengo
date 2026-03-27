@@ -34,6 +34,27 @@ const PORT = process.env.PORT || 3000;
 // Project root (one level above server/)
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 
+// ── Game ID generation ─────────────────────────────────────────────────────
+const ID_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+function generateGameId() {
+  let id = '';
+  for (let i = 0; i < 4; i++) {
+    id += ID_CHARS[Math.floor(Math.random() * ID_CHARS.length)];
+  }
+  return id;
+}
+
+function createUniqueGameId() {
+  let attempts = 0;
+  let id;
+  do {
+    id = generateGameId();
+    if (++attempts > 1000) throw new Error('Cannot generate unique game ID');
+  } while (rooms.has(id) || SaveManager.saveExists(id));
+  return id;
+}
+
 // MIME type map
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -91,6 +112,19 @@ const RECONNECT_TIMEOUT_MS = 30 * 60 * 1000;
 // HTTP request handler (static files + REST endpoints)
 const httpServer = http.createServer((req, res) => {
   const reqUrl = req.url.split('?')[0];  // strip query string
+
+  // POST /games — create a new game and return its auto-generated ID
+  if (req.method === 'POST' && reqUrl === '/games') {
+    try {
+      const gameId = createUniqueGameId();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ gameId }));
+    } catch (err) {
+      res.writeHead(503);
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
 
   // GET /saves
   if (req.method === 'GET' && reqUrl === '/saves') {
@@ -354,6 +388,11 @@ wss.on('connection', (ws, req) => {
     console.error(`WebSocket error for ${side} in game ${gameId}:`, err.message);
   });
 });
+
+// Run cleanup on startup, then every hour
+SaveManager.runCleanup();
+const _cleanupInterval = setInterval(() => SaveManager.runCleanup(), 60 * 60 * 1000);
+if (_cleanupInterval.unref) _cleanupInterval.unref();
 
 httpServer.listen(PORT, () => {
   console.log(`Triomphe à Marengo server listening on http://localhost:${PORT}`);
