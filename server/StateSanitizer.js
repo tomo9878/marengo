@@ -89,6 +89,8 @@ function sanitizePieces(pieces, viewerSide) {
       position: piece.position,
       side: piece.side,
       disordered: false,
+      // entryArea は公開情報（増援の時間帯）。フランス増援の待機駒表示に使用
+      entryArea: piece.entryArea ?? null,
     };
   });
 
