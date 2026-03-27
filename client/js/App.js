@@ -409,7 +409,8 @@ function handleAction(action) {
     if (approachActions.length > 0) {
       actionPanel.showApproachDialog(approachActions, piece.localeId, mapData,
         (act) => { conn.sendAction({ ...act }); clearSelection(); },
-        () => refreshActionPanel()
+        () => refreshActionPanel(),
+        gameState
       );
       return;
     }
@@ -607,7 +608,8 @@ function handleLocaleClick(localeIdx) {
           conn.sendAction({ ...action });
           clearSelection();
         },
-        () => refreshActionPanel()
+        () => refreshActionPanel(),
+        gameState
       );
       return;
     }

@@ -224,6 +224,7 @@ function executeMarchRaid(action, state) {
 
 /**
  * 行軍アクションの実行。
+ * pieceId（単体）と pieceIds（グループ、最大3駒）の両方に対応。
  */
 function executeMarch(action, state) {
   // 道路行軍急襲は専用関数へ委譲
@@ -231,35 +232,60 @@ function executeMarch(action, state) {
     return executeMarchRaid(action, state);
   }
 
+  // pieceId / pieceIds を正規化
+  const pieceIds = (action.pieceIds && action.pieceIds.length > 0)
+    ? [...action.pieceIds]
+    : [action.pieceId];
+  if (!pieceIds[0]) throw new Error('No pieces specified in march action');
+
+  // グループ移動バリデーション
+  if (pieceIds.length > 3) throw new Error('Group march limited to 3 pieces');
+  if (pieceIds.length > 1) {
+    const first = state.pieces[pieceIds[0]];
+    if (!first) throw new Error(`Piece not found: ${pieceIds[0]}`);
+    for (const pid of pieceIds.slice(1)) {
+      const p = state.pieces[pid];
+      if (!p) throw new Error(`Piece not found: ${pid}`);
+      if (state.actedPieceIds.has(pid)) throw new Error(`Piece already acted this turn: ${pid}`);
+      if (p.strength <= 0) throw new Error(`Piece has no strength: ${pid}`);
+      if (p.disordered) throw new Error(`Piece is disordered: ${pid}`);
+      if (p.side !== first.side) throw new Error(`Pieces not on same side`);
+      if (p.localeId !== first.localeId) throw new Error(`Pieces not in same locale`);
+      if (p.position !== first.position) throw new Error(`Pieces not in same position`);
+    }
+  }
+
   let next = cloneState(state);
-  const piece = next.pieces[action.pieceId];
-  if (!piece) throw new Error(`Piece not found: ${action.pieceId}`);
-
   const destLocaleId = action.to.localeId;
+  const movingSide = next.pieces[pieceIds[0]].side;
 
-  // 移動実行
-  next.pieces[action.pieceId] = {
-    ...piece,
-    localeId: destLocaleId,
-    position: action.to.position,
-    actedThisTurn: true,
-  };
-
-  // ロケール占拠履歴を更新（ロケール移動のみ）
-  if (destLocaleId !== piece.localeId && destLocaleId !== null) {
-    next.localeLastOccupant = { ...(next.localeLastOccupant ?? {}), [destLocaleId]: piece.side };
+  // 全駒を移動
+  for (const pid of pieceIds) {
+    const piece = next.pieces[pid];
+    if (!piece) throw new Error(`Piece not found: ${pid}`);
+    next.pieces[pid] = {
+      ...piece,
+      localeId: destLocaleId,
+      position: action.to.position,
+      actedThisTurn: true,
+    };
+    // ロケール占拠履歴を更新（ロケール移動のみ）
+    if (destLocaleId !== piece.localeId && destLocaleId !== null) {
+      next.localeLastOccupant = { ...(next.localeLastOccupant ?? {}), [destLocaleId]: piece.side };
+    }
   }
 
   // Section 14: 混乱ルール — 整列駒が混乱駒のいるロケールへ入ると全員混乱
-  if (!piece.disordered) {
+  // 移動駒のいずれかが非混乱かつ目的地に味方混乱駒がいれば全員混乱
+  const anyNonDisordered = pieceIds.some(pid => !state.pieces[pid].disordered);
+  if (anyNonDisordered) {
     const disorderedInDest = Object.values(next.pieces).some(
-      p => p.id !== action.pieceId && p.localeId === destLocaleId && p.side === piece.side && p.disordered
+      p => !pieceIds.includes(p.id) && p.localeId === destLocaleId && p.side === movingSide && p.disordered
     );
     if (disorderedInDest) {
-      // 同サイドの全駒（移動した駒も含む）を混乱状態にする
       for (const pid of Object.keys(next.pieces)) {
         const p = next.pieces[pid];
-        if (p.localeId === destLocaleId && p.side === piece.side) {
+        if (p.localeId === destLocaleId && p.side === movingSide) {
           next.pieces[pid] = { ...p, disordered: true };
         }
       }
@@ -267,32 +293,32 @@ function executeMarch(action, state) {
   }
 
   // #11: 砲撃自動取り消し — 砲兵が宣言したアプローチを離れた場合
-  if (next.pendingBombardment?.artilleryId === action.pieceId) {
-    // 元の位置（action実行前）が宣言アプローチで、移動後は別の場所になる場合に取り消し
-    const origPosition = piece.position;
-    const origLocale   = piece.localeId;
-    const destPosition = action.to.position;
-    const destLocale   = action.to.localeId;
-    if (origPosition !== destPosition || origLocale !== destLocale) {
-      next.pendingBombardment = null;
-      next.pieces[action.pieceId] = { ...next.pieces[action.pieceId], faceUp: false };
+  for (const pid of pieceIds) {
+    if (next.pendingBombardment?.artilleryId === pid) {
+      const origPiece = state.pieces[pid];
+      if (origPiece.position !== action.to.position || origPiece.localeId !== action.to.localeId) {
+        next.pendingBombardment = null;
+        next.pieces[pid] = { ...next.pieces[pid], faceUp: false };
+      }
     }
   }
 
-  // 道路行軍: 横断交通制限を記録
+  // 道路行軍: 横断交通制限を記録（代表駒で記録）
   if (action.type === 'road_march' && action.crossingPath) {
     for (const { canonicalEdgeId, direction, step } of action.crossingPath) {
       if (!next.crossingTraffic[canonicalEdgeId]) {
         next.crossingTraffic[canonicalEdgeId] = [];
       }
-      next.crossingTraffic[canonicalEdgeId].push({ pieceId: action.pieceId, steps: step, direction });
+      next.crossingTraffic[canonicalEdgeId].push({ pieceId: pieceIds[0], steps: step, direction });
     }
   }
 
-  // 司令ポイント消費
+  // 司令ポイント消費・acted登録（全駒まとめて1CP）
   next.commandPoints -= action.commandCost ?? 0;
-  if (action.commandCost > 0) {
-    next.actedPieceIds.add(action.pieceId);
+  if ((action.commandCost ?? 0) > 0) {
+    for (const pid of pieceIds) {
+      next.actedPieceIds.add(pid);
+    }
   }
 
   return { newState: next, interruption: null };

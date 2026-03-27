@@ -226,6 +226,46 @@ function getLegalCrossCountryMoves(piece, state) {
 }
 
 // ---------------------------------------------------------------------------
+// グループ移動候補（Section 7 — 複数駒まとめて悪路行軍）
+// ---------------------------------------------------------------------------
+
+/**
+ * cross_country_march アクションに対して、同じロケール・同じポジションから
+ * 同じ目的地へ移動できる他の駒のIDリストを返す。
+ * クライアントの「一緒に移動する駒」チェックボックスUIに使用。
+ *
+ * @param {object} action - 単体の cross_country_march アクション（pieceId を持つ）
+ * @param {object} state
+ * @returns {string[]} 候補駒IDリスト（action.pieceId 自身は含まない）
+ */
+function findGroupCandidates(action, state) {
+  if (action.type !== 'cross_country_march') return [];
+  const piece = state.pieces[action.pieceId];
+  if (!piece) return [];
+
+  const candidates = [];
+  for (const other of Object.values(state.pieces)) {
+    if (other.id === action.pieceId) continue;
+    if (!canAct(other, state)) continue;
+    if (other.disordered) continue;
+    if (other.side !== piece.side) continue;
+    if (other.localeId !== piece.localeId) continue;
+    if (other.position !== piece.position) continue;
+
+    // 同じ目的地への cross_country_march が合法かチェック
+    const otherMoves = getLegalCrossCountryMoves(other, state);
+    const hasMove = otherMoves.some(m =>
+      m.type === 'cross_country_march' &&
+      m.to.localeId === action.to.localeId &&
+      m.to.position === action.to.position
+    );
+    if (hasMove) candidates.push(other.id);
+  }
+
+  return candidates;
+}
+
+// ---------------------------------------------------------------------------
 // 道路行軍（Section 8）
 // ---------------------------------------------------------------------------
 
@@ -769,7 +809,16 @@ function getAllLegalActions(state) {
   const side = state.controlToken.holder;
   const pieceActions = Object.values(state.pieces)
     .filter(p => p.side === side)
-    .flatMap(p => getLegalActions(p.id, state));
+    .flatMap(p => {
+      const actions = getLegalActions(p.id, state);
+      return actions.map(a => {
+        if (a.type === 'cross_country_march') {
+          const groupCandidates = findGroupCandidates(a, state);
+          if (groupCandidates.length > 0) return { ...a, groupCandidates };
+        }
+        return a;
+      });
+    });
   const entryActions = getLegalEntryActions(state);
   const reorganizeActions = getLegalReorganizeActions(state);
   return [...pieceActions, ...entryActions, ...reorganizeActions];
@@ -793,6 +842,7 @@ module.exports = {
   isApproachBlocked,
   canFranceBlock,
   isEntryLocaleProtected,
+  findGroupCandidates,
   getLegalCrossCountryMoves,
   getLegalRoadMoves,
   getLegalContinuationMoves,

@@ -199,14 +199,16 @@ export default class ActionPanel {
 
   /**
    * 移動確認ダイアログを表示する。
+   * cross_country_march に groupCandidates がある場合はチェックボックスUIを表示。
    * @param {object[]} actions - 同じ目的地への合法アクション（種別が複数の場合あり）
    * @param {number} fromLocaleId
    * @param {number} toLocaleId
    * @param {object|null} mapData
    * @param {function} onConfirm - 選択アクションを引数に呼ばれる
    * @param {function} onCancel
+   * @param {object|null} gameState - グループ候補の駒情報表示に使用
    */
-  showMoveConfirmDialog(actions, fromLocaleId, toLocaleId, mapData, onConfirm, onCancel) {
+  showMoveConfirmDialog(actions, fromLocaleId, toLocaleId, mapData, onConfirm, onCancel, gameState = null) {
     const el = this._actionPanelEl;
     if (!el) return;
 
@@ -239,12 +241,16 @@ export default class ActionPanel {
         label = action.type;
       }
 
-      const btn = document.createElement('button');
-      btn.className = 'action-btn';
-      btn.style.cssText = 'display:block;width:100%;margin-bottom:4px;text-align:left;';
-      btn.textContent = `${label}  (${action.commandCost}CP)`;
-      btn.addEventListener('click', () => onConfirm(action));
-      el.appendChild(btn);
+      if (action.type === 'cross_country_march' && action.groupCandidates?.length > 0 && gameState) {
+        el.appendChild(this._buildGroupSection(action, label, gameState, onConfirm));
+      } else {
+        const btn = document.createElement('button');
+        btn.className = 'action-btn';
+        btn.style.cssText = 'display:block;width:100%;margin-bottom:4px;text-align:left;';
+        btn.textContent = `${label}  (${action.commandCost}CP)`;
+        btn.addEventListener('click', () => onConfirm(action));
+        el.appendChild(btn);
+      }
     }
 
     const btnCancel = document.createElement('button');
@@ -261,13 +267,15 @@ export default class ActionPanel {
 
   /**
    * アプローチ配置（防御行軍・悪路行軍→アプローチ）の選択ダイアログを表示。
+   * cross_country_march に groupCandidates がある場合はチェックボックスUIを表示。
    * @param {object[]} actions - 同ロケール内アプローチへのアクション群
    * @param {number} localeId
    * @param {object|null} mapData
    * @param {function} onConfirm
    * @param {function} onCancel
+   * @param {object|null} gameState - グループ候補の駒情報表示に使用
    */
-  showApproachDialog(actions, localeId, mapData, onConfirm, onCancel) {
+  showApproachDialog(actions, localeId, mapData, onConfirm, onCancel, gameState = null) {
     const el = this._actionPanelEl;
     if (!el) return;
 
@@ -293,13 +301,18 @@ export default class ActionPanel {
       const m = action.to.position.match(/^approach_(\d+)$/);
       const edgeNum = m ? m[1] : '?';
       const label = typeLabel[action.type] || action.type;
+      const btnLabel = `${label} アプローチ${edgeNum}  (${action.commandCost}CP)`;
 
-      const btn = document.createElement('button');
-      btn.className = 'action-btn';
-      btn.style.cssText = 'display:block;width:100%;margin-bottom:4px;text-align:left;';
-      btn.textContent = `${label} アプローチ${edgeNum}  (${action.commandCost}CP)`;
-      btn.addEventListener('click', () => onConfirm(action));
-      el.appendChild(btn);
+      if (action.type === 'cross_country_march' && action.groupCandidates?.length > 0 && gameState) {
+        el.appendChild(this._buildGroupSection(action, btnLabel, gameState, onConfirm));
+      } else {
+        const btn = document.createElement('button');
+        btn.className = 'action-btn';
+        btn.style.cssText = 'display:block;width:100%;margin-bottom:4px;text-align:left;';
+        btn.textContent = btnLabel;
+        btn.addEventListener('click', () => onConfirm(action));
+        el.appendChild(btn);
+      }
     }
 
     const btnCancel = document.createElement('button');
@@ -308,6 +321,77 @@ export default class ActionPanel {
     btnCancel.textContent = 'キャンセル';
     btnCancel.addEventListener('click', () => { if (onCancel) onCancel(); });
     el.appendChild(btnCancel);
+  }
+
+  // ---------------------------------------------------------------------------
+  // グループ移動セクション（チェックボックスUI）
+  // ---------------------------------------------------------------------------
+
+  /**
+   * 「一緒に移動する駒」チェックボックスUIを持つセクションを生成して返す。
+   * @param {object} action - cross_country_march アクション（groupCandidates あり）
+   * @param {string} headerLabel - セクションヘッダに表示するラベル
+   * @param {object} gameState
+   * @param {function} onConfirm
+   * @returns {HTMLElement}
+   */
+  _buildGroupSection(action, headerLabel, gameState, onConfirm) {
+    const typeMap = { infantry: '歩兵', cavalry: '騎兵', artillery: '砲兵' };
+    const sideMap = { france: '仏', austria: '墺' };
+
+    const section = document.createElement('div');
+    section.style.cssText = 'border:1px solid #0f3460;border-radius:4px;padding:6px;margin-bottom:6px;';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'font-size:11px;font-weight:bold;color:#eee;margin-bottom:4px;';
+    header.textContent = headerLabel;
+    section.appendChild(header);
+
+    const note = document.createElement('div');
+    note.style.cssText = 'font-size:10px;color:#aaa;margin-bottom:4px;';
+    note.textContent = '一緒に移動する駒（最大2個）:';
+    section.appendChild(note);
+
+    const checkboxes = [];
+    for (const candidateId of action.groupCandidates) {
+      const piece = gameState.pieces?.[candidateId];
+      if (!piece) continue;
+
+      const row = document.createElement('label');
+      row.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:#ccc;margin-bottom:3px;cursor:pointer;';
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = candidateId;
+      cb.addEventListener('change', () => {
+        if (checkboxes.filter(c => c.checked).length > 2) cb.checked = false;
+      });
+      checkboxes.push(cb);
+
+      const sideStr = sideMap[piece.side] || piece.side || '';
+      const typeStr = typeMap[piece.type] || piece.type || '?';
+      const strStr  = `${piece.strength ?? '?'}/${piece.maxStrength ?? '?'}`;
+      row.appendChild(cb);
+      row.appendChild(document.createTextNode(` ${sideStr} ${typeStr} (戦力${strStr})`));
+      section.appendChild(row);
+    }
+
+    const btnConfirm = document.createElement('button');
+    btnConfirm.className = 'action-btn';
+    btnConfirm.style.cssText = 'display:block;width:100%;margin-top:4px;';
+    btnConfirm.textContent = '確認';
+    btnConfirm.addEventListener('click', () => {
+      const checkedIds = checkboxes.filter(c => c.checked).map(c => c.value);
+      // groupCandidates を除いたクリーンなアクションを構築
+      const { groupCandidates: _gc, pieceId, ...rest } = action;
+      const finalAction = checkedIds.length > 0
+        ? { ...rest, pieceIds: [pieceId, ...checkedIds] }
+        : { ...rest, pieceId };
+      onConfirm(finalAction);
+    });
+    section.appendChild(btnConfirm);
+
+    return section;
   }
 
   // ---------------------------------------------------------------------------
