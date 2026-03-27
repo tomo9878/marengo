@@ -70,35 +70,47 @@ console.log('\n═══ Test 1: 最初の進入が可能 ═══');
 }
 
 // ════════════════════════════════════════════════════════════════
-// テスト 2: 3駒まで進入可能
+// テスト 2: 4駒まで進入可能（舟橋ボーナス）
 // ════════════════════════════════════════════════════════════════
-console.log('\n═══ Test 2: 3駒まで進入可能 ═══');
+console.log('\n═══ Test 2: 4駒まで進入可能（舟橋ボーナス） ═══');
 {
   let state = baseState([
     offMapPiece('AU-INF-1'),
     offMapPiece('AU-INF-2'),
     offMapPiece('AU-INF-3'),
-    offMapPiece('AU-INF-4'), // 4駒目（進入不可）
+    offMapPiece('AU-INF-4'),
+    offMapPiece('AU-INF-5'), // 5駒目（進入不可）
   ]);
 
   // 1駒目
   ({ newState: state } = executeAction({ type: 'ENTER_MAP', pieceId: 'AU-INF-1' }, state));
   expect('1駒目進入後: crossingTraffic ステップ1記録', state.crossingTraffic[BORMIDA_ENTRY_CROSSING_ID]?.length, 1);
   expect('1駒目進入後: ステップ1', state.crossingTraffic[BORMIDA_ENTRY_CROSSING_ID][0].steps, 1);
+  expect('1駒目進入後: CP消費なし', state.commandPoints, 10);
 
   // 2駒目
   ({ newState: state } = executeAction({ type: 'ENTER_MAP', pieceId: 'AU-INF-2' }, state));
   expect('2駒目進入後: crossingTraffic ステップ2記録', state.crossingTraffic[BORMIDA_ENTRY_CROSSING_ID]?.length, 2);
   expect('2駒目進入後: ステップ2', state.crossingTraffic[BORMIDA_ENTRY_CROSSING_ID][1].steps, 2);
+  expect('2駒目進入後: CP消費なし', state.commandPoints, 10);
 
   // 3駒目
   ({ newState: state } = executeAction({ type: 'ENTER_MAP', pieceId: 'AU-INF-3' }, state));
   expect('3駒目進入後: crossingTraffic ステップ3記録', state.crossingTraffic[BORMIDA_ENTRY_CROSSING_ID]?.length, 3);
   expect('3駒目進入後: ステップ3', state.crossingTraffic[BORMIDA_ENTRY_CROSSING_ID][2].steps, 3);
+  expect('3駒目進入後: CP消費なし', state.commandPoints, 10);
 
-  // 4駒目: 進入不可
+  // 4駒目: 進入可能（舟橋ボーナス）
   const actions4 = getLegalEntryActions(state);
-  expect('4駒目: 交通制限によりエントリーアクションなし', actions4.length, 0);
+  expect('4駒目: エントリーアクションあり（舟橋ボーナス）', actions4.length > 0, true);
+  ({ newState: state } = executeAction({ type: 'ENTER_MAP', pieceId: 'AU-INF-4' }, state));
+  expect('4駒目進入後: crossingTraffic ステップ4記録', state.crossingTraffic[BORMIDA_ENTRY_CROSSING_ID]?.length, 4);
+  expect('4駒目進入後: ステップ4', state.crossingTraffic[BORMIDA_ENTRY_CROSSING_ID][3].steps, 4);
+  expect('4駒目進入後: CP消費なし', state.commandPoints, 10);
+
+  // 5駒目: 進入不可
+  const actions5 = getLegalEntryActions(state);
+  expect('5駒目: 交通制限によりエントリーアクションなし', actions5.length, 0);
 }
 
 // ════════════════════════════════════════════════════════════════

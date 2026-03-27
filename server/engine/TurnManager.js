@@ -583,11 +583,8 @@ function executeEnterMap(action, state) {
     throw new Error(`Artillery cannot enter before round ${ARTILLERY_ENTRY_MIN_ROUND} (7AM)`);
   }
 
-  // コスト計算: 最初の入場は0CP（ポンツーン橋）、以降は1CP
-  const cost = entriesThisTurn === 0 ? 0 : 1;
-  if (cost > next.commandPoints) {
-    throw new Error(`Not enough command points (need ${cost}, have ${next.commandPoints})`);
-  }
+  // 全駒CP消費なし（主要道路・舟橋ともに）
+  const cost = 0;
 
   // 司令ポイント消費
   next.commandPoints -= cost;
@@ -621,7 +618,7 @@ function executeEnterMap(action, state) {
   });
 
   // ログ追加
-  next = addLog(next, `オーストリア駒 ${action.pieceId} がボルミダ川よりマップに入場 (コスト: ${cost}CP)`);
+  next = addLog(next, `オーストリア駒 ${action.pieceId} がボルミダ川よりマップに入場 (コスト: 0CP)`);
 
   return { newState: next, interruption: null };
 }

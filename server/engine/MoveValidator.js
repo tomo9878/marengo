@@ -18,7 +18,7 @@ const map = require('./MapGraph');
 
 const BORMIDA_ENTRY_LOCALE_IDX = 1; // ボルミダ川渡河地点（エリアidx=1、ユーザー確認済み）
 const ARTILLERY_ENTRY_MIN_ROUND = 2; // 7AM = round 2 (per scenarios.json artilleryAvailableFrom)
-const MAX_ENTRIES_PER_TURN = 3; // #10: 横断交通制限によりターン最大3駒
+const MAX_ENTRIES_PER_TURN = 4; // 舟橋ボーナス含め最大4駒/ターン
 
 // #10: 増援進入時の交通制限用定数
 const BORMIDA_ENTRY_CROSSING_ID = 'bormida_entry';
@@ -654,13 +654,12 @@ function getLegalEntryActions(state) {
   // #10: 増援進入時の交通制限チェック（マップ端 = 最初の横断）
   const nextEntryStep = entriesThisTurn + 1;
   const { canPass: canEnter } = map.checkCrossingTraffic(
-    BORMIDA_ENTRY_CROSSING_ID, BORMIDA_ENTRY_DIRECTION, nextEntryStep, state
+    BORMIDA_ENTRY_CROSSING_ID, BORMIDA_ENTRY_DIRECTION, nextEntryStep, state, MAX_ENTRIES_PER_TURN
   );
   if (!canEnter) return [];
 
-  // このアクションのコストを計算
-  const cost = entriesThisTurn === 0 ? 0 : 1;
-  if (cost > state.commandPoints) return [];
+  // 全駒CP消費なし（主要道路・舟橋ともに）
+  const cost = 0;
 
   // マップ外のオーストリア駒を取得
   const offMapPieces = Object.values(state.pieces).filter(

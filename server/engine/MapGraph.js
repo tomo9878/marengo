@@ -491,9 +491,10 @@ function getRoadEdgesBetween(localeA, localeB, side = null) {
  * @param {string} direction    - 方向文字列 "fromLocale->toLocale"
  * @param {number} minPieceStep - この駒が最早で通過できるステップ（前の横断ステップ+1）
  * @param {object} state        - GameState
+ * @param {number} [capacity=3] - 最大通過駒数（舟橋など特殊横断は4）
  * @returns {{ canPass: boolean, minStep: number }} minStep は実際に通過するステップ
  */
-function checkCrossingTraffic(canonicalId, direction, minPieceStep, state) {
+function checkCrossingTraffic(canonicalId, direction, minPieceStep, state, capacity = 3) {
   const traffic = state.crossingTraffic[canonicalId] || [];
 
   // 逆走禁止チェック（方向が異なる駒が既に通過していれば拒否）
@@ -501,8 +502,8 @@ function checkCrossingTraffic(canonicalId, direction, minPieceStep, state) {
     return { canPass: false, minStep: Infinity };
   }
 
-  // 最大3駒制限
-  if (traffic.length >= 3) {
+  // 最大駒数制限
+  if (traffic.length >= capacity) {
     return { canPass: false, minStep: Infinity };
   }
 
@@ -510,7 +511,7 @@ function checkCrossingTraffic(canonicalId, direction, minPieceStep, state) {
   // ステップ2が使用済みでもステップ1が空いていれば使用可能。
   // （1駒の行軍内では時刻は単調増加なので minPieceStep の下限は維持する）
   const usedSteps = new Set(traffic.map(t => t.steps));
-  for (let step = minPieceStep; step <= 3; step++) {
+  for (let step = minPieceStep; step <= capacity; step++) {
     if (!usedSteps.has(step)) {
       return { canPass: true, minStep: step };
     }
