@@ -54,6 +54,16 @@ export default class CombatDialog {
       onResponse({ pieceIds: selected });
     });
 
+    // 応答可能な駒がある場合、1体以上選択するまで確定不可
+    if (eligible.length > 0) {
+      btn.disabled = true;
+      for (const cb of checkboxes) {
+        cb.addEventListener('change', () => {
+          btn.disabled = !checkboxes.some(c => c.checked);
+        });
+      }
+    }
+
     actions.appendChild(btn);
     container.appendChild(actions);
   }
