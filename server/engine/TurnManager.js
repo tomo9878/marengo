@@ -797,7 +797,25 @@ function processDefenseResponse(response, state) {
       return { newState: next, interruption: null };
     }
 
-    // 通常急襲: 防御側勝利 → 攻撃側はリザーブに留まる。インタラプションなし。
+    // 通常急襲: 防御側勝利 → 攻撃側にアプローチ移動オプションを発行
+    // 防御アプローチの反対側（攻撃側ロケール・エッジ）を求める
+    const opposite = map.getOppositeApproach(ctx.targetLocaleId, ctx.defenseEdgeIdx);
+    if (opposite) {
+      const attackerSide = next.activePlayer; // activePlayer = 急襲を起こした側
+      const approachInterruption = {
+        type: INTERRUPTION.ATTACKER_APPROACH,
+        waitingFor: attackerSide,
+        context: {
+          attackerPieceIds: ctx.attackerPieceIds,
+          attackLocaleId:   opposite.localeIdx,
+          attackEdgeIdx:    opposite.edgeIdx,
+        },
+      };
+      next.pendingInterruption = approachInterruption;
+      next.controlToken = { holder: attackerSide, reason: INTERRUPTION.ATTACKER_APPROACH };
+      return { newState: next, interruption: approachInterruption };
+    }
+
     return { newState: next, interruption: null };
   } else {
     // 攻撃側勝ち: 攻撃側駒が targetLocale へ移動（resolveRaid 内で処理済み）
