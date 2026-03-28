@@ -88,7 +88,7 @@ function sanitizePieces(pieces, viewerSide) {
       localeId: piece.localeId,
       position: piece.position,
       side: piece.side,
-      disordered: false,
+      disordered: piece.disordered,  // 混乱状態は敵側にも公開（視覚マーカー表示用）
       // entryArea は公開情報（増援の時間帯）。フランス増援の待機駒表示に使用
       entryArea: piece.entryArea ?? null,
     };
