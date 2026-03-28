@@ -321,6 +321,16 @@ function executeMarch(action, state) {
     }
   }
 
+  // 入場直後の行軍完了: enteredThisTurn から削除して actedPieceIds に追加
+  // （0CP道路行軍の場合も acted 扱いとする）
+  if (!next.enteredThisTurn) next.enteredThisTurn = {};
+  for (const pid of pieceIds) {
+    if (next.enteredThisTurn[pid] !== undefined) {
+      delete next.enteredThisTurn[pid];
+      next.actedPieceIds.add(pid);
+    }
+  }
+
   // 継続行軍資格の更新
   if (!next.continuationEligiblePieces) next.continuationEligiblePieces = {};
   if (action.type === 'road_march' || action.type === 'cross_country_march') {
@@ -651,11 +661,21 @@ function executeEnterMap(action, state) {
   // ロケール占拠履歴を更新
   next.localeLastOccupant = { ...(next.localeLastOccupant ?? {}), [BORMIDA_ENTRY_LOCALE_IDX]: piece.side };
 
-  // 入場済み駒として記録
-  next.actedPieceIds.add(action.pieceId);
-
   // 入場カウントを更新
   next.entriesThisTurn = entriesThisTurn + 1;
+
+  // 入場後の継続道路行軍ステップ数を設定
+  // ステップ1(1駒目)→2ステップ追加行軍可、ステップ2→1ステップ、ステップ3以降→停止
+  const ENTRY_MARCH_BONUS = 2;
+  const remainingSteps = Math.max(0, ENTRY_MARCH_BONUS - entriesThisTurn);
+  if (!next.enteredThisTurn) next.enteredThisTurn = {};
+  next.enteredThisTurn[action.pieceId] = remainingSteps;
+
+  if (remainingSteps === 0) {
+    // 行軍不可（3駒目以降）: 入場地点で止まる
+    next.actedPieceIds.add(action.pieceId);
+  }
+  // remainingSteps > 0 の場合は actedPieceIds に追加しない（道路行軍可能）
 
   // #10: 増援進入時の交通制限を記録
   const { BORMIDA_ENTRY_CROSSING_ID, BORMIDA_ENTRY_DIRECTION } = validator;

@@ -151,6 +151,7 @@ function isApproachBlocked(localeId, edgeIdx, state) {
 function getLegalCrossCountryMoves(piece, state) {
   if (!canAct(piece, state)) return [];
   if (piece.disordered) return []; // 混乱中は行軍不可
+  if ((state.enteredThisTurn ?? {})[piece.id] !== undefined) return []; // 入場直後は道路行軍のみ
   const results = [];
   const { isApproach, edgeIdx } = getApproachInfo(piece);
 
@@ -282,7 +283,9 @@ function getLegalRoadMoves(piece, state) {
   if (piece.disordered) return []; // 混乱中は行軍不可
   if (!inReserve(piece)) return [];
 
-  const MAX_STEPS = 3;
+  // 入場直後の駒: enteredThisTurn の残余ステップ数を最大行軍深さとして使用
+  const enteredStepsLeft = (state.enteredThisTurn ?? {})[piece.id];
+  const MAX_STEPS = enteredStepsLeft !== undefined ? enteredStepsLeft : 3;
 
   // BFS でステップシミュレーション。
   // 各横断（road edge）を個別に追跡し、交通制限を適用する。
@@ -499,6 +502,7 @@ function getLegalContinuationMoves(piece, state, lastRoadLocaleId = null) {
 function getLegalRaids(piece, state) {
   if (!canAct(piece, state)) return [];
   if (piece.disordered) return [];
+  if ((state.enteredThisTurn ?? {})[piece.id] !== undefined) return []; // 入場直後は道路行軍のみ
 
   const results = [];
   const { isApproach, edgeIdx } = getApproachInfo(piece);
@@ -566,6 +570,7 @@ function getLegalRaids(piece, state) {
 function getLegalAssaults(piece, state) {
   if (!canAct(piece, state)) return [];
   if (piece.disordered) return [];
+  if ((state.enteredThisTurn ?? {})[piece.id] !== undefined) return []; // 入場直後は道路行軍のみ
 
   const { isApproach, edgeIdx } = getApproachInfo(piece);
   if (!isApproach) return [];
@@ -614,6 +619,7 @@ function getLegalBombardments(piece, state) {
   if (piece.type !== PIECE_TYPES.ARTILLERY) return [];
   if (!canAct(piece, state)) return [];
   if (piece.disordered) return [];
+  if ((state.enteredThisTurn ?? {})[piece.id] !== undefined) return []; // 入場直後は道路行軍のみ
 
   // 既に砲撃宣言済み → 取り消しアクションのみ返す（#11）
   // ※ 敵占拠チェックより先に確認（宣言後に敵が退いた場合もキャンセル可能）
