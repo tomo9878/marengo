@@ -38,6 +38,32 @@ let isSpectatorMode = false;
 let soloConnections = null; // { france: Connection, austria: Connection }
 
 // ---------------------------------------------------------------------------
+// Audio
+// ---------------------------------------------------------------------------
+
+let _audioCtx = null;
+
+function playTurnPing() {
+  try {
+    if (!_audioCtx) _audioCtx = new AudioContext();
+    const ctx = _audioCtx;
+    if (ctx.state === 'suspended') ctx.resume();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.4, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.35);
+  } catch (e) {
+    // AudioContext unavailable
+  }
+}
+
+// ---------------------------------------------------------------------------
 // DOM refs
 // ---------------------------------------------------------------------------
 
@@ -289,7 +315,16 @@ function updateSoloIndicator() {
  * @param {object} newState
  */
 function applyState(newState) {
+  const prevHolder = gameState?.controlToken?.holder ?? null;
   gameState = newState;
+
+  // 自分のターン開始時にPing音を鳴らす（ソロ・観戦は除外）
+  if (!isSoloMode && !isSpectatorMode) {
+    const newHolder = gameState?.controlToken?.holder;
+    if (newHolder === myState.side && newHolder !== prevHolder) {
+      playTurnPing();
+    }
+  }
 
   // Update UI
   infoPanel.updateHeader(gameState, myState.side);
