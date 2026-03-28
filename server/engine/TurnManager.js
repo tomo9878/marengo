@@ -84,7 +84,29 @@ function applyApproachCleanup(state) {
  * @param {object} state
  * @returns {{ newState: GameState, interruption: object | null }}
  */
+/**
+ * 前のアクションで一時的に表向きになった駒を裏に戻す。
+ * 砲撃宣言中の砲兵（pendingBombardment.artilleryId）は対象外。
+ * @param {GameState} state
+ * @returns {GameState} 変更があれば新しい state、なければそのまま
+ */
+function _clearTransientFaceUp(state) {
+  const bombArtId = state.pendingBombardment?.artilleryId;
+  const needsClear = Object.values(state.pieces).some(p => p.faceUp && p.id !== bombArtId);
+  if (!needsClear) return state;
+  const next = cloneState(state);
+  for (const [pid, piece] of Object.entries(next.pieces)) {
+    if (piece.faceUp && pid !== bombArtId) {
+      next.pieces[pid] = { ...piece, faceUp: false };
+    }
+  }
+  return next;
+}
+
 function executeAction(action, state) {
+  // 前のアクションで一時的に表向きになった駒を裏に戻す
+  state = _clearTransientFaceUp(state);
+
   // #12: シャッフルは制御権に関係なくいつでも実行可能
   if (action.type === 'shuffle') {
     return executeShuffle(action, state);

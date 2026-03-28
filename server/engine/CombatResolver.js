@@ -573,10 +573,14 @@ function resolveRetreat({ losingLocaleId, attackInfo, reductionChoices, destinat
     p => p.localeId === losingLocaleId && p.side === losingOccupant && p.strength > 0
   );
 
+  const revealedCavalryIds = [];
   for (const piece of losingPieces) {
     const dest = destinations?.[piece.id];
     if (dest !== undefined && dest !== null) {
-      next.pieces[piece.id] = { ...piece, localeId: dest, position: 'reserve' };
+      // リザーブの騎兵が退却する場合、騎兵であることを示すために表向きにする
+      const showFaceUp = piece.type === PIECE_TYPES.CAVALRY && piece.position === 'reserve';
+      if (showFaceUp) revealedCavalryIds.push(piece.id);
+      next.pieces[piece.id] = { ...piece, localeId: dest, position: 'reserve', faceUp: showFaceUp };
       retreatingPieceCount++;
     } else {
       // 退却先がない → 除去
@@ -593,7 +597,7 @@ function resolveRetreat({ losingLocaleId, attackInfo, reductionChoices, destinat
   // 士気損失: 強度減少分
   const moraleReduction = totalStrengthReduced;
 
-  return { newState: next, moraleInvestment, moraleReduction };
+  return { newState: next, moraleInvestment, moraleReduction, revealedCavalryIds };
 }
 
 // ---------------------------------------------------------------------------
