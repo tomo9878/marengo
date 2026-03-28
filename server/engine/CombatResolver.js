@@ -119,8 +119,14 @@ function getValidRetreatDestinations(pieceId, losingLocaleId, attackInfo, state)
 // ---------------------------------------------------------------------------
 
 /**
- * 急襲を解決する。
- * @param {{ attackerPieceIds, targetLocaleId, defenseEdgeIdx, defenseResponsePieceIds }} params
+ * 急襲を解決する（勝敗判定・攻撃側移動）。
+ *
+ * 防御側勝利条件:
+ *   1. 完全ブロック（狭い=1体、広い=2体）
+ *   2. 部分ブロック（広い=1体）かつ 攻撃側が1体 かつ このアプローチ最初の急襲
+ *
+ * @param {{ attackerPieceIds, targetLocaleId, defenseEdgeIdx,
+ *           defenseResponsePieceIds, isFirstRaidThroughApproach }} params
  * @param {object} state
  * @returns {{ winner: 'attacker'|'defender', retreatInfo, moraleInvestment, newState }}
  */
@@ -130,7 +136,7 @@ function resolveRaid(
 ) {
   let next = cloneState(state);
 
-  // 防御応答: リザーブから attackerPieceIds の数まで防御アプローチへ移動
+  // 防御応答駒を防御アプローチへ移動（まだ移動していない場合）
   for (const pid of defenseResponsePieceIds) {
     const p = next.pieces[pid];
     if (p) {
@@ -138,16 +144,22 @@ function resolveRaid(
     }
   }
 
-  // 完全ブロック判定（応答後）
-  const fullyBlocked = map.isFullyBlocked(targetLocaleId, defenseEdgeIdx, next);
+  // ブロック状況を確認
+  const blockingCount  = map.getBlockingPieces(targetLocaleId, defenseEdgeIdx, next).length;
+  const requirement    = map.getBlockRequirement(targetLocaleId, defenseEdgeIdx);
+  const isFullBlock    = blockingCount >= requirement;
+  const isPartialBlock = blockingCount > 0 && blockingCount < requirement;
+  const singleAttacker = attackerPieceIds.length === 1;
 
-  if (fullyBlocked) {
-    // 防御側の勝ち
+  // 防御側勝利判定
+  const defenderWins = isFullBlock || (isPartialBlock && singleAttacker && isFirstRaidThroughApproach);
+
+  if (defenderWins) {
     const width = map.getApproachWidth(targetLocaleId, defenseEdgeIdx);
     const isWide = width === 'wide';
     const multipleAttackers = attackerPieceIds.length >= 2;
 
-    // 士気投入: 1、ただし wide AND 2+攻撃者 AND 最初の急襲 → 2
+    // 士気投入数: 1。ただし広いアプローチ AND 2体以上攻撃 AND 最初の急襲 → 2
     let moraleInvestment = 1;
     if (isWide && multipleAttackers && isFirstRaidThroughApproach) {
       moraleInvestment = 2;
@@ -161,11 +173,9 @@ function resolveRaid(
     };
   }
 
-  // 攻撃側の勝ち: 防御側退却、攻撃側が対象ロケールのリザーブへ
-  // 退却情報を返す (実際の退却は resolveRetreat で)
+  // 攻撃側勝利: 攻撃駒が対象ロケールのリザーブへ、防御側は退却
   const defenderSide = map.getLocaleOccupant(targetLocaleId, next);
 
-  // 攻撃側の駒を targetLocaleId のリザーブへ移動
   for (const pid of attackerPieceIds) {
     const p = next.pieces[pid];
     if (p) {
@@ -180,7 +190,7 @@ function resolveRaid(
       attackLocaleId: attackerPieceIds.length > 0
         ? state.pieces[attackerPieceIds[0]]?.localeId
         : null,
-      attackEdgeIdx: null, // raid は approach からでないため
+      attackEdgeIdx: null,
       isRaid: true,
     },
   };

@@ -360,8 +360,91 @@ function executeMarch(action, state) {
 }
 
 /**
+ * 急襲解決後の状態を適用するヘルパー。
+ * initiateRaid（アプローチ攻撃の即時解決）と processDefenseResponse の両方から呼ばれる。
+ *
+ * @param {object} result    - combat.resolveRaid の返り値
+ * @param {object} ctx       - { attackerPieceIds, targetLocaleId, defenseEdgeIdx,
+ *                              attackFromApproach, isRoadMarchRaid }
+ * @param {string} attackerSide - 攻撃側の陣営
+ * @returns {{ newState, interruption }}
+ */
+function _applyRaidOutcome(result, ctx, attackerSide) {
+  // result.newState は resolveRaid 内で cloneState 済み
+  // morale.investMorale も内部で clone するのでそのまま渡す
+  let st = result.newState;
+
+  if (result.winner === 'defender') {
+    // 防御側勝利: 防御側が士気トークン投入
+    const defenderSide = attackerSide === SIDES.FRANCE ? SIDES.AUSTRIA : SIDES.FRANCE;
+    st = morale.investMorale(defenderSide, ctx.targetLocaleId, result.moraleInvestment, st);
+
+    if (ctx.isRoadMarchRaid) {
+      // 道路行軍急襲: 騎兵を表向き・行軍終了
+      for (const pid of ctx.attackerPieceIds) {
+        const p = st.pieces[pid];
+        if (p) st.pieces[pid] = { ...p, faceUp: true };
+        st.actedPieceIds.add(pid);
+      }
+      return { newState: st, interruption: null };
+    }
+
+    if (ctx.attackFromApproach) {
+      // アプローチから攻撃 → 攻撃駒はその場に留まる、ATTACKER_APPROACHは不要
+      return { newState: st, interruption: null };
+    }
+
+    // リザーブから攻撃 → ATTACKER_APPROACH インタラプション（クライアントで選択）
+    const opposite = map.getOppositeApproach(ctx.targetLocaleId, ctx.defenseEdgeIdx);
+    if (opposite) {
+      const approachInt = {
+        type: INTERRUPTION.ATTACKER_APPROACH,
+        waitingFor: attackerSide,
+        context: {
+          attackerPieceIds: ctx.attackerPieceIds,
+          attackLocaleId:   opposite.localeIdx,
+          attackEdgeIdx:    opposite.edgeIdx,
+        },
+      };
+      st.pendingInterruption = approachInt;
+      st.controlToken = { holder: attackerSide, reason: INTERRUPTION.ATTACKER_APPROACH };
+      return { newState: st, interruption: approachInt };
+    }
+
+    // getOppositeApproach が null の場合（想定外）: そのまま返す
+    return { newState: st, interruption: null };
+
+  } else {
+    // 攻撃側勝利
+    st.localeLastOccupant = {
+      ...(st.localeLastOccupant ?? {}),
+      [ctx.targetLocaleId]: attackerSide,
+    };
+
+    if (ctx.isRoadMarchRaid) {
+      // 道路行軍急襲: 騎兵を表向き（actedPieceIds には追加しない → 継続行軍可能）
+      for (const pid of ctx.attackerPieceIds) {
+        const p = st.pieces[pid];
+        if (p) st.pieces[pid] = { ...p, faceUp: true };
+      }
+    }
+
+    const retreatInt = {
+      type: INTERRUPTION.RETREAT_DESTINATION,
+      waitingFor: result.retreatInfo.losingside,
+      context: { ...result.retreatInfo, isRaid: true },
+    };
+    st.pendingInterruption = retreatInt;
+    st.controlToken = { holder: result.retreatInfo.losingside, reason: INTERRUPTION.RETREAT_DESTINATION };
+    return { newState: st, interruption: retreatInt };
+  }
+}
+
+/**
  * 急襲の開始処理。
- * 防御側の応答インタラプションを生成する。
+ *
+ * - 攻撃がアプローチから: 防御対応なし、即時解決
+ * - 攻撃がリザーブから:   DEFENSE_RESPONSE インタラプション生成
  */
 function initiateRaid(action, state) {
   let next = cloneState(state);
@@ -371,15 +454,39 @@ function initiateRaid(action, state) {
   next.commandPoints -= 3;
   next.actedPieceIds.add(action.pieceId);
 
-  // 攻撃側の駒を記録
-  // 急襲では単一駒のため attackerPieceIds = [pieceId]
   const attackerPieceIds = [action.pieceId];
-
-  // 防御側がリザーブから応答できるか確認
-  const defSide = piece.side === SIDES.FRANCE ? SIDES.AUSTRIA : SIDES.FRANCE;
+  const defSide   = piece.side === SIDES.FRANCE ? SIDES.AUSTRIA : SIDES.FRANCE;
   const defLocale = action.targetLocaleId;
 
-  // ラウンド1はフランス軍混乱のためブロック不可（いかなる場合も）
+  // 「最初の急襲」チェック
+  const raidHistory = next.raidHistoryThisTurn ?? [];
+  const isFirstRaidThroughApproach = !raidHistory.some(
+    r => r.localeId === defLocale && r.edgeIdx === action.defenseEdgeIdx
+  );
+  next.raidHistoryThisTurn = [...raidHistory, { localeId: defLocale, edgeIdx: action.defenseEdgeIdx }];
+
+  const attackFromApproach = action.fromPosition?.startsWith('approach_') ?? false;
+
+  if (attackFromApproach) {
+    // アプローチから攻撃: 防御対応なし、即時解決
+    const result = combat.resolveRaid({
+      attackerPieceIds,
+      targetLocaleId:            defLocale,
+      defenseEdgeIdx:            action.defenseEdgeIdx,
+      defenseResponsePieceIds:   [],
+      isFirstRaidThroughApproach,
+    }, next);
+
+    return _applyRaidOutcome(result, {
+      attackerPieceIds,
+      targetLocaleId:    defLocale,
+      defenseEdgeIdx:    action.defenseEdgeIdx,
+      attackFromApproach: true,
+      isRoadMarchRaid:    false,
+    }, piece.side);
+  }
+
+  // リザーブから攻撃: DEFENSE_RESPONSE インタラプション生成
   const franceCanBlockThisRound = !(next.round === 1 && defSide === SIDES.FRANCE);
   const defenderReserve = franceCanBlockThisRound
     ? Object.values(next.pieces).filter(
@@ -387,15 +494,6 @@ function initiateRaid(action, state) {
       )
     : [];
 
-  // 「最初の急襲」チェック: このターンこのアプローチを通過した最初の急襲か
-  const raidHistory = next.raidHistoryThisTurn ?? [];
-  const isFirstRaidThroughApproach = !raidHistory.some(
-    r => r.localeId === defLocale && r.edgeIdx === action.defenseEdgeIdx
-  );
-  // このアプローチを急襲履歴に追加
-  next.raidHistoryThisTurn = [...raidHistory, { localeId: defLocale, edgeIdx: action.defenseEdgeIdx }];
-
-  // インタラプション生成
   const interruption = {
     type: INTERRUPTION.DEFENSE_RESPONSE,
     waitingFor: defSide,
@@ -411,7 +509,6 @@ function initiateRaid(action, state) {
 
   next.pendingInterruption = interruption;
   next.controlToken = { holder: defSide, reason: INTERRUPTION.DEFENSE_RESPONSE };
-
   return { newState: next, interruption };
 }
 
@@ -758,9 +855,7 @@ function processDefenseResponse(response, state) {
   const responseIds = response.pieceIds ?? [];
   for (const pid of responseIds) {
     const p = next.pieces[pid];
-    if (p) {
-      next.pieces[pid] = { ...p, position: `approach_${ctx.defenseEdgeIdx}` };
-    }
+    if (p) next.pieces[pid] = { ...p, position: `approach_${ctx.defenseEdgeIdx}` };
   }
 
   // インタラプションをクリア
@@ -768,88 +863,22 @@ function processDefenseResponse(response, state) {
   next.controlToken = { holder: next.activePlayer, reason: 'active_player' };
 
   // 急襲を解決
-  const result = combat.resolveRaid(
-    {
-      attackerPieceIds: ctx.attackerPieceIds,
-      targetLocaleId: ctx.targetLocaleId,
-      defenseEdgeIdx: ctx.defenseEdgeIdx,
-      defenseResponsePieceIds: responseIds,
-      isFirstRaidThroughApproach: ctx.isFirstRaidThroughApproach ?? true,
-    },
-    next
-  );
+  const result = combat.resolveRaid({
+    attackerPieceIds:          ctx.attackerPieceIds,
+    targetLocaleId:            ctx.targetLocaleId,
+    defenseEdgeIdx:            ctx.defenseEdgeIdx,
+    defenseResponsePieceIds:   responseIds,
+    isFirstRaidThroughApproach: ctx.isFirstRaidThroughApproach ?? true,
+  }, next);
 
-  next = result.newState;
-
-  if (result.winner === 'defender') {
-    // 防御側勝ち: 士気投入
-    const defSide = next.controlToken.holder;
-    const atkSide = defSide === SIDES.FRANCE ? SIDES.AUSTRIA : SIDES.FRANCE;
-    next = morale.investMorale(atkSide, ctx.targetLocaleId, result.moraleInvestment, next);
-
-    // 道路行軍急襲の場合: 騎兵をfaceUp、actedPieceIdsに追加して行軍終了
-    if (ctx.isRoadMarchRaid) {
-      for (const pid of ctx.attackerPieceIds) {
-        const p = next.pieces[pid];
-        if (p) next.pieces[pid] = { ...p, faceUp: true };
-        next.actedPieceIds.add(pid);
-      }
-      return { newState: next, interruption: null };
-    }
-
-    // 通常急襲: 防御側勝利 → 攻撃側にアプローチ移動オプションを発行
-    // 防御アプローチの反対側（攻撃側ロケール・エッジ）を求める
-    const opposite = map.getOppositeApproach(ctx.targetLocaleId, ctx.defenseEdgeIdx);
-    if (opposite) {
-      const attackerSide = next.activePlayer; // activePlayer = 急襲を起こした側
-      const approachInterruption = {
-        type: INTERRUPTION.ATTACKER_APPROACH,
-        waitingFor: attackerSide,
-        context: {
-          attackerPieceIds: ctx.attackerPieceIds,
-          attackLocaleId:   opposite.localeIdx,
-          attackEdgeIdx:    opposite.edgeIdx,
-        },
-      };
-      next.pendingInterruption = approachInterruption;
-      next.controlToken = { holder: attackerSide, reason: INTERRUPTION.ATTACKER_APPROACH };
-      return { newState: next, interruption: approachInterruption };
-    }
-
-    return { newState: next, interruption: null };
-  } else {
-    // 攻撃側勝ち: 攻撃側駒が targetLocale へ移動（resolveRaid 内で処理済み）
-    // ロケール占拠履歴を更新
-    const atkSide2 = next.controlToken.holder;
-    next.localeLastOccupant = {
-      ...(next.localeLastOccupant ?? {}),
-      [ctx.targetLocaleId]: atkSide2,
-    };
-
-    // 道路行軍急襲の場合: 騎兵をfaceUp（actedPieceIdsには追加しない→継続行軍可能）
-    if (ctx.isRoadMarchRaid) {
-      for (const pid of ctx.attackerPieceIds) {
-        const p = next.pieces[pid];
-        if (p) next.pieces[pid] = { ...p, faceUp: true };
-      }
-    }
-
-    // 退却インタラプション
-    const retreatInterruption = {
-      type: INTERRUPTION.RETREAT_DESTINATION,
-      waitingFor: result.retreatInfo.losingside,
-      context: {
-        ...result.retreatInfo,
-        isRaid: true,
-      },
-    };
-    next.pendingInterruption = retreatInterruption;
-    next.controlToken = {
-      holder: result.retreatInfo.losingside,
-      reason: INTERRUPTION.RETREAT_DESTINATION,
-    };
-    return { newState: next, interruption: retreatInterruption };
-  }
+  // 共通アウトカム処理（processDefenseResponse = 常にリザーブからの攻撃）
+  return _applyRaidOutcome(result, {
+    attackerPieceIds:   ctx.attackerPieceIds,
+    targetLocaleId:     ctx.targetLocaleId,
+    defenseEdgeIdx:     ctx.defenseEdgeIdx,
+    attackFromApproach: false,
+    isRoadMarchRaid:    ctx.isRoadMarchRaid ?? false,
+  }, next.activePlayer);
 }
 
 /**

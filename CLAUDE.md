@@ -103,22 +103,26 @@ data/
 
 ---
 
-## テストスイート（2026-03-27時点）
+## テストスイート（2026-03-28時点）
 
-全17ファイル、**246アサーション全パス**。
+全20ファイル、**299アサーション全パス**（morale_interruptions.js は既知クラッシュで除外）。
 
 ```
 assault_blocked_approach.js    20 passed  突撃敗北後のアプローチ封鎖
 assault_patterns.js            39 passed  突撃全パターン（7シナリオ）
 bombardment_cancel.js          11 passed  砲撃宣言キャンセル
 cav_impassable.js               6 passed  騎兵通行不可（急襲/先導/カウンター禁止）
-entry_crossing_traffic.js      12 passed  増援進入時の交通制限
+cav_obstacle_leaders.js         6 passed  騎兵障害物（先導駒・カウンター禁止）
+continuation_march.js          21 passed  継続行軍（騎兵・道路/悪路別）
+entry_crossing_traffic.js      19 passed  増援進入時の交通制限
 entry_locale_protection.js      8 passed  進入ロケール保護
+entry_march_integrated.js      25 passed  増援進入+道路行軍一体化
 france_morale_recovery_enemy_turn.js  9 passed  フランス回収・敵ターン置き除外
 france_round1_no_block.js       7 passed  ラウンド1フランス混乱（ブロック不可）
+group_march.js                 29 passed  グループ悪路行軍（セクション7）
 morale_cleanup_last_occupant.js 9 passed  士気クリーンアップ（最後の占拠者条件）
-morale_combat.js               28 passed  戦闘6パターン士気変動（新規）
-morale_interruptions.js        25 passed  MORALE_TOKEN_REMOVAL / FRANCE_MORALE_RECOVERY
+morale_combat.js               28 passed  戦闘6パターン士気変動
+morale_interruptions.js        ❌ クラッシュ（既知・未修正）
 multiple_crossings.js          12 passed  複数横断の独立交通制限
 obstacle_penalty.js             7 passed  障害物ペナルティ計算
 raid_cavalry_obstacle.js        6 passed  急襲騎兵障害物チェック
@@ -157,7 +161,28 @@ shuffle.js                     10 passed  シャッフルアクション
 
 ## 直近のセッションで実装した内容
 
-### 2026-03-27（今セッション）
+### 2026-03-28（今セッション）
+- **急襲防御成功後 ATTACKER_APPROACH インタラプション生成**
+  - `processDefenseResponse` で防御側勝利時に `ATTACKER_APPROACH` を発行
+  - 攻撃側はアプローチへの移動を選択できるようになった
+  - `morale_combat.js` 2件修正（26→28 passed）
+  - テスト: `entry_march_integrated.js`（25件）新規作成
+
+- **オーストリア増援進入と道路行軍の一体化**
+  - `GameState.enteredThisTurn` 新フィールド（入場後の残行軍ステップ管理）
+  - `TurnManager.executeEnterMap`: 入場順に残ステップ付与（1駒目→2、2駒目→1、3/4駒目→0）
+  - `TurnManager.executeMarch`: 入場直後駒の行軍完了で actedPieceIds に追加
+  - `MoveValidator`: 入場直後駒は道路行軍のみ可（悪路/急襲/突撃/砲撃不可）
+  - `GameState.resetCommandPoints`: ターン開始時に `enteredThisTurn` クリア
+
+- **フランス混乱駒の disorder マーカーをオーストリア側に公開**
+  - `StateSanitizer.sanitizePieces`: 隠蔽駒の `disordered` を実値で送信（`false` 固定から変更）
+
+- **ターン開始 Ping 音**
+  - `App.js`: Web Audio API で 880Hz サイン波（0.35秒）
+  - `applyState()` で制御トークンが自側に移ったとき再生（ソロ/観戦除外）
+
+### 2026-03-27
 - **騎兵通行不可（`cav_impassable`）エンジンサポート**
   - `MapGraph.isCavalryImpassable()` 追加
   - `MoveValidator.getLegalRaids` でブロック
