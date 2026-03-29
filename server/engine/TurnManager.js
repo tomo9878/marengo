@@ -79,6 +79,38 @@ function applyApproachCleanup(state) {
 // ---------------------------------------------------------------------------
 
 /**
+ * Section 14: 混乱伝染チェック。
+ * 指定された駒が destLocaleId に到着した直後に呼ぶ。
+ * 到着駒のいずれかが非混乱 かつ 目的地に既存の混乱味方駒がいれば
+ * そのロケールの全味方駒を混乱させる。
+ * @param {GameState} state  駒がすでに destLocaleId に移動済みの状態
+ * @param {string[]}  arrivedPieceIds  今回到着した駒のID配列
+ * @param {number}    destLocaleId
+ * @returns {GameState}
+ */
+function _applyDisorderContagion(state, arrivedPieceIds, destLocaleId) {
+  if (!arrivedPieceIds.length || destLocaleId == null) return state;
+  const side = state.pieces[arrivedPieceIds[0]]?.side;
+  if (!side) return state;
+
+  const anyNonDisordered = arrivedPieceIds.some(pid => !state.pieces[pid]?.disordered);
+  if (!anyNonDisordered) return state;
+
+  const hasDisorderedResident = Object.values(state.pieces).some(
+    p => !arrivedPieceIds.includes(p.id) && p.localeId === destLocaleId && p.side === side && p.disordered
+  );
+  if (!hasDisorderedResident) return state;
+
+  const next = cloneState(state);
+  for (const [pid, p] of Object.entries(next.pieces)) {
+    if (p.localeId === destLocaleId && p.side === side && !p.disordered) {
+      next.pieces[pid] = { ...p, disordered: true };
+    }
+  }
+  return next;
+}
+
+/**
  * アクションを実行する。
  * @param {object} action
  * @param {object} state
@@ -297,22 +329,8 @@ function executeMarch(action, state) {
     }
   }
 
-  // Section 14: 混乱ルール — 整列駒が混乱駒のいるロケールへ入ると全員混乱
-  // 移動駒のいずれかが非混乱かつ目的地に味方混乱駒がいれば全員混乱
-  const anyNonDisordered = pieceIds.some(pid => !state.pieces[pid].disordered);
-  if (anyNonDisordered) {
-    const disorderedInDest = Object.values(next.pieces).some(
-      p => !pieceIds.includes(p.id) && p.localeId === destLocaleId && p.side === movingSide && p.disordered
-    );
-    if (disorderedInDest) {
-      for (const pid of Object.keys(next.pieces)) {
-        const p = next.pieces[pid];
-        if (p.localeId === destLocaleId && p.side === movingSide) {
-          next.pieces[pid] = { ...p, disordered: true };
-        }
-      }
-    }
-  }
+  // Section 14: 混乱伝染
+  next = _applyDisorderContagion(next, pieceIds, destLocaleId);
 
   // #11: 砲撃自動取り消し — 砲兵が宣言したアプローチを離れた場合
   for (const pid of pieceIds) {
@@ -442,6 +460,9 @@ function _applyRaidOutcome(result, ctx, attackerSide) {
       ...(st.localeLastOccupant ?? {}),
       [ctx.targetLocaleId]: attackerSide,
     };
+
+    // Section 14: 混乱伝染（急襲勝利で攻撃側が進入）
+    st = _applyDisorderContagion(st, ctx.attackerPieceIds, ctx.targetLocaleId);
 
     if (ctx.isRoadMarchRaid) {
       // 道路行軍急襲: 騎兵を表向き（actedPieceIds には追加しない → 継続行軍可能）
@@ -1121,6 +1142,10 @@ function processAssaultReductions(response, state) {
   next = completeResult.newState;
 
   if (ctx.atkWins) {
+    // Section 14: 混乱伝染（突撃勝利で攻撃側が進入）
+    const survivingAtkIds = ctx.atkAssaultIds.filter(id => next.pieces[id]?.strength > 0);
+    next = _applyDisorderContagion(next, survivingAtkIds, ctx.defenseLocaleId);
+
     // 防御側士気投入: 先導駒 + カウンター駒の数
     const defInvestCount = ctx.defLeaderIds.length + ctx.counterIds.length;
     if (defInvestCount > 0) {
@@ -1370,6 +1395,22 @@ function processRetreatDestination(response, state) {
       if (p) {
         next.localeLastOccupant = { ...(next.localeLastOccupant ?? {}), [destLocaleId]: p.side };
       }
+    }
+  }
+
+  // Section 14: 混乱伝染（退却で進入）
+  // 退却先ごとにグループ化して伝染チェック
+  {
+    const destGroups = {};
+    for (const [pid, destLocaleId] of Object.entries(dests)) {
+      if (destLocaleId != null) {
+        const key = Number(destLocaleId);
+        if (!destGroups[key]) destGroups[key] = [];
+        destGroups[key].push(pid);
+      }
+    }
+    for (const [destLocale, pids] of Object.entries(destGroups)) {
+      next = _applyDisorderContagion(next, pids, Number(destLocale));
     }
   }
 
