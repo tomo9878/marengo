@@ -82,6 +82,7 @@ const inputSide         = document.getElementById('inputSide');
 const connectBtn        = document.getElementById('connectBtn');
 const connectError      = document.getElementById('connectError');
 const canvas            = document.getElementById('mapCanvas');
+const btnAreaIdx        = document.getElementById('btnAreaIdx');
 const btnSave           = document.getElementById('btnSave');
 const btnShowSaveList   = document.getElementById('btnShowSaveList');
 const saveListContainer = document.getElementById('saveListContainer');
@@ -124,6 +125,7 @@ async function init() {
   mapRenderer = new MapRenderer(canvas, mapData || { areas: [], map: { width: 2700, height: 1799 } });
   mapRenderer._onRenderRequest = scheduleRender;
   mapRenderer.onImageLoad = scheduleRender;
+  mapRenderer.showAreaIdx = localStorage.getItem('showAreaIdx') === '1';
   mapRenderer.fitToCanvas();
 
   // Canvas click: piece / locale selection
@@ -140,13 +142,24 @@ async function init() {
     clearSelection();
   });
 
-  // Debug: D key toggles area index display
+  // エリア番号オーバーレイ — ボタン + D キー、状態を localStorage で保存
+  function _setAreaIdx(on) {
+    if (mapRenderer) mapRenderer.showAreaIdx = on;
+    localStorage.setItem('showAreaIdx', on ? '1' : '0');
+    if (btnAreaIdx) btnAreaIdx.style.color = on ? '#ffe44d' : '#ccc';
+    scheduleRender();
+  }
+  // 初期化: 保存値を復元
+  const _savedAreaIdx = localStorage.getItem('showAreaIdx') === '1';
+  if (btnAreaIdx) {
+    btnAreaIdx.addEventListener('click', () => {
+      _setAreaIdx(mapRenderer ? !mapRenderer.showAreaIdx : !_savedAreaIdx);
+    });
+    btnAreaIdx.style.color = _savedAreaIdx ? '#ffe44d' : '#ccc';
+  }
   window.addEventListener('keydown', (e) => {
     if (e.key === 'd' || e.key === 'D') {
-      if (mapRenderer) {
-        mapRenderer.showAreaIdx = !mapRenderer.showAreaIdx;
-        scheduleRender();
-      }
+      _setAreaIdx(mapRenderer ? !mapRenderer.showAreaIdx : !_savedAreaIdx);
     }
   });
 
