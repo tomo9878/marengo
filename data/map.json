@@ -53,9 +53,9 @@
       "edges": [
         {
           "id": "e0-0",
-          "shared_with": null,
-          "adj_area_idx": null,
-          "adj_area_name": null,
+          "shared_with": "e3-4",
+          "adj_area_idx": 3,
+          "adj_area_name": "エリア_3",
           "road_type": "thick",
           "mp_cost": 1,
           "width": "narrow",
@@ -423,9 +423,9 @@
         },
         {
           "id": "e3-4",
-          "shared_with": null,
-          "adj_area_idx": null,
-          "adj_area_name": null,
+          "shared_with": "e0-0",
+          "adj_area_idx": 0,
+          "adj_area_name": "エリア_0",
           "road_type": "thick",
           "mp_cost": 1,
           "width": "narrow",
