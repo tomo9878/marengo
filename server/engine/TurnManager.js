@@ -752,8 +752,8 @@ function executeReorganize(action, state) {
     if (piece.localeId !== localeId) throw new Error(`指定ロケールにいません: ${pid}`);
   }
 
-  // CP消費 = 再編成する駒の数（再編成した駒はactedPieceIdsに追加しない → 同ターン行動可能）
-  next.commandPoints -= pieceIds.length;
+  // CP消費 = 1固定（1アクション1CP。再編成した駒はactedPieceIdsに追加しない → 同ターン行動可能）
+  next.commandPoints -= 1;
 
   for (const pid of pieceIds) {
     next.pieces[pid] = { ...next.pieces[pid], disordered: false };

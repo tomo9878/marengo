@@ -764,8 +764,8 @@ function getLegalReorganizeActions(state) {
     const disorderedPieceIds = Object.values(state.pieces)
       .filter(p => p.localeId === localeId && p.side === SIDES.FRANCE && p.disordered)
       .map(p => p.id);
-    // CP = 再編成する駒の数。CP不足なら不可
-    const commandCost = disorderedPieceIds.length;
+    // CP = 1固定（何駒あっても1アクション1CP）
+    const commandCost = 1;
     if (state.commandPoints < commandCost) continue;
 
     results.push({
