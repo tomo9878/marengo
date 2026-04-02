@@ -402,16 +402,24 @@ export default class ActionPanel {
     const el = this._actionPanelEl;
     if (!el) return;
 
-    const { disorderedPieceIds, localeId } = reorganizeAction;
+    const { disorderedPieceIds, localeId, localeIds } = reorganizeAction;
     const pieces = gameState.pieces || {};
     const typeMap = { infantry: '歩兵', cavalry: '騎兵', artillery: '砲兵' };
-    const localeName = this._getLocaleName(localeId, mapData);
+
+    // タイトル（単一ロケール or 複数ロケール）
+    let titleText;
+    if (localeIds) {
+      const names = localeIds.map(id => this._getLocaleName(id, mapData)).join(' + ');
+      titleText = `再編成 — ${names}`;
+    } else {
+      titleText = `再編成 — ${this._getLocaleName(localeId, mapData)}`;
+    }
 
     el.innerHTML = '';
 
     const title = document.createElement('div');
     title.style.cssText = 'color:#4ecca3;font-size:12px;font-weight:bold;margin-bottom:6px;';
-    title.textContent = `再編成 — ${localeName}`;
+    title.textContent = titleText;
     el.appendChild(title);
 
     const note = document.createElement('div');
@@ -419,23 +427,22 @@ export default class ActionPanel {
     note.textContent = '以下の全駒を再編成します（一括のみ）:';
     el.appendChild(note);
 
-    // 対象駒リスト（選択不可・表示のみ）
     for (const pid of disorderedPieceIds) {
       const piece = pieces[pid];
       if (!piece) continue;
       const row = document.createElement('div');
       row.style.cssText = 'padding:2px 0;font-size:11px;color:#ccc;';
-      row.textContent = `▶ 仏 ${typeMap[piece.type] || piece.type} (戦力${piece.strength}/${piece.maxStrength})`;
+      const loc = localeIds ? ` [${this._getLocaleName(piece.localeId, mapData)}]` : '';
+      row.textContent = `▶ 仏 ${typeMap[piece.type] || piece.type} (戦力${piece.strength}/${piece.maxStrength})${loc}`;
       el.appendChild(row);
     }
 
     const btnRow = document.createElement('div');
     btnRow.style.cssText = 'display:flex;gap:6px;margin-top:8px;';
 
-    const cpCost = reorganizeAction.commandCost ?? disorderedPieceIds.length;
     const btnConfirm = document.createElement('button');
     btnConfirm.className = 'action-btn';
-    btnConfirm.textContent = `再編成実行 (${cpCost}CP)`;
+    btnConfirm.textContent = '再編成実行 (1CP)';
     btnConfirm.addEventListener('click', () => onConfirm(disorderedPieceIds));
 
     const btnCancel = document.createElement('button');
@@ -447,6 +454,44 @@ export default class ActionPanel {
     btnRow.appendChild(btnConfirm);
     btnRow.appendChild(btnCancel);
     el.appendChild(btnRow);
+  }
+
+  showReorganizeChoiceDialog(matchingActions, gameState, mapData, onSelect, onCancel) {
+    const el = this._actionPanelEl;
+    if (!el) return;
+
+    el.innerHTML = '';
+
+    const title = document.createElement('div');
+    title.style.cssText = 'color:#4ecca3;font-size:12px;font-weight:bold;margin-bottom:6px;';
+    title.textContent = '再編成 — オプション選択';
+    el.appendChild(title);
+
+    for (const reorgAction of matchingActions) {
+      const { disorderedPieceIds, localeId, localeIds } = reorgAction;
+      let label;
+      if (localeIds) {
+        const names = localeIds.map(id => this._getLocaleName(id, mapData)).join(' + ');
+        label = `2駒（${names}）`;
+      } else {
+        const count = disorderedPieceIds.length;
+        label = `${count}駒（${this._getLocaleName(localeId, mapData)}）`;
+      }
+
+      const btn = document.createElement('button');
+      btn.className = 'action-btn';
+      btn.style.cssText = 'display:block;width:100%;margin-bottom:4px;';
+      btn.textContent = label;
+      btn.addEventListener('click', () => onSelect(reorgAction));
+      el.appendChild(btn);
+    }
+
+    const btnCancel = document.createElement('button');
+    btnCancel.className = 'action-btn';
+    btnCancel.style.cssText = 'display:block;width:100%;background:#333;';
+    btnCancel.textContent = 'キャンセル';
+    btnCancel.addEventListener('click', () => { if (onCancel) onCancel(); });
+    el.appendChild(btnCancel);
   }
 
   // ---------------------------------------------------------------------------

@@ -723,24 +723,25 @@ function executeBombardmentComplete(action, state) {
 
 /**
  * 再編成。
+ * pieceIds: 再編成する駒ID配列（1〜2駒、複数ロケール可）。
+ * 容量: マップ上の秩序状態フランス駒が3個以上なら2駒、それ以下なら1駒。
+ * ロケール内の全混乱駒を含めること（部分再編成不可）。
  */
 function executeReorganize(action, state) {
   let next = cloneState(state);
-  const { pieceIds, localeId } = action;
+  const { pieceIds } = action;
 
   if (!pieceIds || !Array.isArray(pieceIds) || pieceIds.length === 0) {
     return { newState: next, interruption: null };
   }
 
-  // Section 14: 全員まとめてか0か
-  // ロケールの全混乱駒を取得
-  const allDisordered = Object.values(next.pieces).filter(
-    p => p.localeId === localeId && p.side === SIDES.FRANCE && p.disordered
-  ).map(p => p.id);
-
-  // 全混乱駒を渡していること（部分再編成不可）
-  if (pieceIds.length !== allDisordered.length) {
-    throw new Error('ロケール内の全混乱駒をまとめて再編成する必要があります');
+  // 容量チェック
+  const orderedCount = Object.values(next.pieces).filter(
+    p => p.side === SIDES.FRANCE && p.localeId !== null && !p.disordered
+  ).length;
+  const maxReorganize = orderedCount >= 3 ? 2 : 1;
+  if (pieceIds.length > maxReorganize) {
+    throw new Error(`再編成できる駒数の上限は${maxReorganize}です`);
   }
 
   // 各駒のバリデーション
@@ -749,10 +750,21 @@ function executeReorganize(action, state) {
     if (!piece) throw new Error(`駒が見つかりません: ${pid}`);
     if (piece.side !== SIDES.FRANCE) throw new Error(`フランス軍の駒ではありません: ${pid}`);
     if (!piece.disordered) throw new Error(`混乱していません: ${pid}`);
-    if (piece.localeId !== localeId) throw new Error(`指定ロケールにいません: ${pid}`);
   }
 
-  // CP消費 = 1固定（1アクション1CP。再編成した駒はactedPieceIdsに追加しない → 同ターン行動可能）
+  // ロケール内全部か0かチェック（各ロケールの全混乱駒が含まれていること）
+  const involvedLocales = new Set(pieceIds.map(pid => next.pieces[pid].localeId));
+  for (const localeId of involvedLocales) {
+    const allDisorderedInLocale = Object.values(next.pieces)
+      .filter(p => p.localeId === localeId && p.side === SIDES.FRANCE && p.disordered)
+      .map(p => p.id);
+    const selectedInLocale = pieceIds.filter(pid => next.pieces[pid].localeId === localeId);
+    if (selectedInLocale.length !== allDisorderedInLocale.length) {
+      throw new Error('ロケール内の全混乱駒をまとめて再編成する必要があります');
+    }
+  }
+
+  // CP消費（1アクション1CP固定。再編成した駒はactedPieceIdsに追加しない → 同ターン行動可能）
   next.commandPoints -= 1;
 
   for (const pid of pieceIds) {

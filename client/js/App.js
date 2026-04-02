@@ -421,27 +421,44 @@ function handleAction(action) {
     const piece = gameState.pieces[selectedPieceId];
     if (!piece) return;
 
-    // serverLegalActions から該当ロケールの再編成アクションを検索
-    const reorgAction = serverLegalActions.find(
-      a => a.type === 'reorganize' && a.localeId === piece.localeId
-    );
-    if (!reorgAction) {
+    // 選択駒のロケールに関連する再編成アクションを全て収集
+    const matchingActions = serverLegalActions.filter(a => {
+      if (a.type !== 'reorganize') return false;
+      if (a.localeId === piece.localeId) return true;
+      if (a.localeIds && a.localeIds.includes(piece.localeId)) return true;
+      return false;
+    });
+
+    if (matchingActions.length === 0) {
       infoPanel.addLog('このロケールに再編成可能な駒がありません');
       return;
     }
 
-    actionPanel.showReorganizeDialog(
-      reorgAction,
-      gameState,
-      mapData,
-      (pieceIds) => {
-        conn.sendAction({ type: 'reorganize', pieceIds, localeId: reorgAction.localeId });
-        clearSelection();
-      },
-      () => {
-        refreshActionPanel();
-      }
-    );
+    const doReorganize = (reorgAction) => {
+      actionPanel.showReorganizeDialog(
+        reorgAction,
+        gameState,
+        mapData,
+        (pieceIds) => {
+          conn.sendAction({ type: 'reorganize', pieceIds });
+          clearSelection();
+        },
+        () => { refreshActionPanel(); }
+      );
+    };
+
+    if (matchingActions.length === 1) {
+      doReorganize(matchingActions[0]);
+    } else {
+      // 複数の選択肢（1駒単独 vs 2駒異ロケール等）
+      actionPanel.showReorganizeChoiceDialog(
+        matchingActions,
+        gameState,
+        mapData,
+        (reorgAction) => { doReorganize(reorgAction); },
+        () => { refreshActionPanel(); }
+      );
+    }
     return;
   }
 

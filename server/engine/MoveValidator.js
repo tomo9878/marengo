@@ -751,29 +751,52 @@ function getLegalReorganizeActions(state) {
   if (state.activePlayer !== SIDES.FRANCE) return [];
   if (state.controlToken.holder !== SIDES.FRANCE) return [];
   if (state.pendingInterruption) return [];
-  // 混乱したフランス駒があるロケールを収集
-  const localesWithDisordered = new Set();
+  if (state.commandPoints < 1) return [];
+
+  // 秩序状態のフランス駒数（マップ上・非混乱）で容量を決定
+  const orderedCount = Object.values(state.pieces).filter(
+    p => p.side === SIDES.FRANCE && p.localeId !== null && !p.disordered
+  ).length;
+  const maxReorganize = orderedCount >= 3 ? 2 : 1;
+
+  // ロケール別の混乱駒を収集
+  const localeDisordered = {};
   for (const piece of Object.values(state.pieces)) {
     if (piece.side === SIDES.FRANCE && piece.disordered && piece.localeId !== null) {
-      localesWithDisordered.add(piece.localeId);
+      if (!localeDisordered[piece.localeId]) localeDisordered[piece.localeId] = [];
+      localeDisordered[piece.localeId].push(piece.id);
     }
   }
 
   const results = [];
-  for (const localeId of localesWithDisordered) {
-    const disorderedPieceIds = Object.values(state.pieces)
-      .filter(p => p.localeId === localeId && p.side === SIDES.FRANCE && p.disordered)
-      .map(p => p.id);
-    // CP = 1固定（何駒あっても1アクション1CP）
-    const commandCost = 1;
-    if (state.commandPoints < commandCost) continue;
 
-    results.push({
-      type: 'reorganize',
-      localeId,
-      disorderedPieceIds,
-      commandCost,
-    });
+  // 単一ロケールアクション（そのロケールの混乱駒数 ≤ capacity のみ選択可）
+  for (const [localeId, pieceIds] of Object.entries(localeDisordered)) {
+    if (pieceIds.length <= maxReorganize) {
+      results.push({
+        type: 'reorganize',
+        localeId: Number(localeId),
+        disorderedPieceIds: pieceIds,
+        commandCost: 1,
+      });
+    }
+  }
+
+  // 2駒容量の場合、1駒ずつ異なるロケールの組み合わせも生成
+  if (maxReorganize === 2) {
+    const singleLocales = Object.entries(localeDisordered).filter(([, pids]) => pids.length === 1);
+    for (let i = 0; i < singleLocales.length; i++) {
+      for (let j = i + 1; j < singleLocales.length; j++) {
+        const [locA, pidsA] = singleLocales[i];
+        const [locB, pidsB] = singleLocales[j];
+        results.push({
+          type: 'reorganize',
+          localeIds: [Number(locA), Number(locB)],
+          disorderedPieceIds: [...pidsA, ...pidsB],
+          commandCost: 1,
+        });
+      }
+    }
   }
 
   return results;
