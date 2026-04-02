@@ -28,8 +28,10 @@ const scenarios = require('../../data/scenarios.json');
 function startPlayerTurn(state) {
   let next = cloneState(state);
 
-  // 1. 士気定期更新
-  next = morale.periodicMoraleUpdate(next.round, next);
+  // 1. 士気定期更新（ラウンド開始時＝オーストリアターン開始時のみ）
+  if (next.activePlayer === SIDES.AUSTRIA) {
+    next = morale.periodicMoraleUpdate(next.round, next);
+  }
 
   // 2. アプローチクリーンアップ
   next = applyApproachCleanup(next);
