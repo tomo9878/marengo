@@ -122,12 +122,13 @@ function reduceMorale(side, amount, state) {
   next.morale[side].uncommitted -= fromUncommitted;
   remaining -= fromUncommitted;
 
-  // uncommitted が尽きたらマップトークンから即時除去（先頭から自動選択）
-  while (remaining > 0) {
-    const idx = next.moraleTokens.findIndex(t => t.side === side);
-    if (idx === -1) break;
-    next.moraleTokens.splice(idx, 1);
-    remaining--;
+  // uncommitted が尽きた場合 → pendingMoraleRemovals に積む
+  // 相手プレイヤーが除去するトークンを選ぶ（MORALE_TOKEN_REMOVAL インタラプション）
+  if (remaining > 0) {
+    next.pendingMoraleRemovals = [
+      ...(next.pendingMoraleRemovals ?? []),
+      { side, amount: remaining },
+    ];
   }
 
   return next;
