@@ -1,6 +1,6 @@
 # Triomphe à Marengo v1.6 — 開発状況サマリ
 
-**更新日: 2026-03-27**
+**更新日: 2026-03-29**
 
 ---
 
@@ -103,9 +103,9 @@ data/
 
 ---
 
-## テストスイート（2026-03-28時点）
+## テストスイート（2026-04-03時点）
 
-全20ファイル、**299アサーション全パス**（morale_interruptions.js は既知クラッシュで除外）。
+全24ファイル、**376アサーション全パス**。
 
 ```
 assault_blocked_approach.js    20 passed  突撃敗北後のアプローチ封鎖
@@ -114,19 +114,22 @@ bombardment_cancel.js          11 passed  砲撃宣言キャンセル
 cav_impassable.js               6 passed  騎兵通行不可（急襲/先導/カウンター禁止）
 cav_obstacle_leaders.js         6 passed  騎兵障害物（先導駒・カウンター禁止）
 continuation_march.js          21 passed  継続行軍（騎兵・道路/悪路別）
+disorder_contagion.js          13 passed  混乱伝染（行軍/急襲/突撃/退却）
 entry_crossing_traffic.js      19 passed  増援進入時の交通制限
 entry_locale_protection.js      8 passed  進入ロケール保護
-entry_march_integrated.js      25 passed  増援進入+道路行軍一体化
+entry_march_integrated.js      40 passed  増援進入+道路行軍一体化
 france_morale_recovery_enemy_turn.js  9 passed  フランス回収・敵ターン置き除外
 france_round1_no_block.js       7 passed  ラウンド1フランス混乱（ブロック不可）
 group_march.js                 29 passed  グループ悪路行軍（セクション7）
 morale_cleanup_last_occupant.js 9 passed  士気クリーンアップ（最後の占拠者条件）
 morale_combat.js               28 passed  戦闘6パターン士気変動
-morale_interruptions.js        ❌ クラッシュ（既知・未修正）
+morale_interruptions.js        28 passed  士気インタラプション（TOKEN_REMOVAL / RECOVERY）
 multiple_crossings.js          12 passed  複数横断の独立交通制限
 obstacle_penalty.js             7 passed  障害物ペナルティ計算
 raid_cavalry_obstacle.js        6 passed  急襲騎兵障害物チェック
 raid_morale_first.js            9 passed  急襲士気2トークン「最初の急襲」条件
+raid_win_conditions.js         26 passed  急襲勝敗条件（部分ブロック・アプローチ攻撃）
+retreat_cavalry_faceup.js      10 passed  退却騎兵 faceUp 表示
 road_march_raid.js             18 passed  道路行軍急襲（セクション8）
 shuffle.js                     10 passed  シャッフルアクション
 ```
@@ -161,7 +164,32 @@ shuffle.js                     10 passed  シャッフルアクション
 
 ## 直近のセッションで実装した内容
 
-### 2026-03-28（今セッション）
+### 2026-03-29
+- **急襲（セクション9）完全再実装**
+  - 部分ブロック勝敗条件追加: narrow/wide・攻撃駒数・最初の急襲フラグの組み合わせで正確に判定
+  - アプローチからの攻撃を即時解決（`DEFENSE_RESPONSE` を生成しない）
+  - `_applyRaidOutcome` ヘルパー新設: `initiateRaid`（アプローチ攻撃）と `processDefenseResponse`（リザーブ攻撃）で共有
+  - `processDefenseResponse` をリファクタ（`defSide`/`atkSide` の混乱を解消）
+  - テスト: `tests/raid_win_conditions.js`（26件）新規作成
+
+- **急襲防御応答 UI のconfirmボタン制御**
+  - `CombatDialog.renderDefenseResponse`: 応答可能駒がいる場合は1駒以上選択するまでconfirmボタンを disabled に
+
+- **退却時の騎兵 faceUp 表示**
+  - `CombatResolver.resolveRetreat`: リザーブの騎兵が退却する際 `faceUp=true` を設定
+  - `TurnManager._clearTransientFaceUp` ヘルパー新設: 次の `executeAction` 冒頭で全駒の `faceUp` をリセット（砲撃宣言中の砲兵は除外）
+  - テスト: `tests/retreat_cavalry_faceup.js`（10件）新規作成
+
+- **混乱伝染バグ修正（セクション14）**
+  - `TurnManager._applyDisorderContagion` ヘルパー新設: 非混乱駒が混乱駒のいるロケールに進入した場合、同側全駒を混乱状態に
+  - 適用箇所: `executeMarch`（既存インライン処理を置換）、`_applyRaidOutcome`（急襲勝利後）、`processAssaultReductions`（突撃勝利後）、`processRetreatDestination`（退却先ロケールごとにグループ化して適用）
+  - テスト: `tests/disorder_contagion.js`（13件）新規作成
+
+- **エリア番号オーバーレイの ON/OFF ボタン**
+  - `client/index.html`: `#btnAreaIdx` ボタンをマップ右上に追加（絶対配置）
+  - `client/js/App.js`: `_setAreaIdx(on)` 関数追加、localStorage で設定永続化、D キーとボタンを統合
+
+### 2026-03-28
 - **急襲防御成功後 ATTACKER_APPROACH インタラプション生成**
   - `processDefenseResponse` で防御側勝利時に `ATTACKER_APPROACH` を発行
   - 攻撃側はアプローチへの移動を選択できるようになった
