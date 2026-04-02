@@ -370,6 +370,7 @@ function executeMarch(action, state) {
     if (next.enteredThisTurn[pid] !== undefined) {
       delete next.enteredThisTurn[pid];
       next.actedPieceIds.add(pid);
+      next.roadMarchUsedCount = (next.roadMarchUsedCount ?? 0) + 1;
     }
   }
 
@@ -818,18 +819,10 @@ function executeEnterMap(action, state) {
   // 入場カウントを更新
   next.entriesThisTurn = entriesThisTurn + 1;
 
-  // 入場後の継続道路行軍ステップ数を設定
-  // ステップ1(1駒目)→2ステップ追加行軍可、ステップ2→1ステップ、ステップ3以降→停止
-  const ENTRY_MARCH_BONUS = 2;
-  const remainingSteps = Math.max(0, ENTRY_MARCH_BONUS - entriesThisTurn);
+  // 入場後の継続道路行軍ステップ数: 全駒2で設定
+  // 実際に使えるステップは道路行軍開始時に roadMarchUsedCount で判定する
   if (!next.enteredThisTurn) next.enteredThisTurn = {};
-  next.enteredThisTurn[action.pieceId] = remainingSteps;
-
-  if (remainingSteps === 0) {
-    // 行軍不可（3駒目以降）: 入場地点で止まる
-    next.actedPieceIds.add(action.pieceId);
-  }
-  // remainingSteps > 0 の場合は actedPieceIds に追加しない（道路行軍可能）
+  next.enteredThisTurn[action.pieceId] = 2;
 
   // #10: 増援進入時の交通制限を記録
   const { BORMIDA_ENTRY_CROSSING_ID, BORMIDA_ENTRY_DIRECTION } = validator;

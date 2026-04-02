@@ -283,9 +283,17 @@ function getLegalRoadMoves(piece, state) {
   if (piece.disordered) return []; // 混乱中は行軍不可
   if (!inReserve(piece)) return [];
 
-  // 入場直後の駒: enteredThisTurn の残余ステップ数を最大行軍深さとして使用
-  const enteredStepsLeft = (state.enteredThisTurn ?? {})[piece.id];
-  const MAX_STEPS = enteredStepsLeft !== undefined ? enteredStepsLeft : 3;
+  // 入場直後の駒: roadMarchUsedCount で実際のステップ数を決定
+  // 0回目→2ステップ、1回目→1ステップ、2回目以降→行軍不可
+  const isEnteredPiece = (state.enteredThisTurn ?? {})[piece.id] !== undefined;
+  let MAX_STEPS;
+  if (isEnteredPiece) {
+    const used = state.roadMarchUsedCount ?? 0;
+    MAX_STEPS = Math.max(0, 2 - used);
+    if (MAX_STEPS === 0) return []; // 道路行軍枠を使い切った
+  } else {
+    MAX_STEPS = 3;
+  }
 
   // BFS でステップシミュレーション。
   // 各横断（road edge）を個別に追跡し、交通制限を適用する。

@@ -126,6 +126,10 @@ function createInitialState() {
     // 入場後に道路行軍を完了するか、ターンが終わるまで actedPieceIds に入らない
     enteredThisTurn: {},
 
+    // --- このターンに道路行軍した入場駒の数 ---
+    // 0回目→2ステップ、1回目→1ステップ、2回目以降→行軍不可
+    roadMarchUsedCount: 0,
+
     // --- このターンに投入した士気トークン記録 ---
     // フランス回収時に「このターン置いたもの」を除外するために使う
     // [ { side, localeId }, ... ]  ターン開始時にリセット
@@ -369,6 +373,7 @@ function resetCommandPoints(state) {
   next.crossingTraffic = {};
   next.entriesThisTurn = 0;
   next.enteredThisTurn = {};
+  next.roadMarchUsedCount = 0;
   next.moraleTokensPlacedThisTurn = [];
   next.pendingMoraleRemovals = [];
   next.blockedApproachesAfterAssault = [];
