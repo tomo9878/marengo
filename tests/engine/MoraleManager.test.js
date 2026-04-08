@@ -87,17 +87,22 @@ describe('reduceMorale', () => {
     expect(next.moraleTokens.length).toBe(0);
   });
 
-  test('then reduces from map tokens when uncommitted is exhausted', () => {
+  test('then queues map token removal when uncommitted is exhausted', () => {
     const state = createMinimalState();
     state.morale.france.uncommitted = 1;
     state.moraleTokens.push({ side: SIDES.FRANCE, localeId: 5 });
     state.moraleTokens.push({ side: SIDES.FRANCE, localeId: 6 });
 
     const next = moraleManager.reduceMorale(SIDES.FRANCE, 3, state);
-    // 1 from uncommitted, 2 from map tokens
+    // uncommitted から1消費
     expect(next.morale.france.uncommitted).toBe(0);
+    // 残り2はMORALE_TOKEN_REMOVAL割り込み用にキュー（相手が除去駒を選ぶ）
+    expect(next.pendingMoraleRemovals).toEqual(
+      expect.arrayContaining([{ side: SIDES.FRANCE, amount: 2 }])
+    );
+    // マップトークンはまだ除去されていない（割り込み解決まで残る）
     const franceTokens = next.moraleTokens.filter(t => t.side === SIDES.FRANCE);
-    expect(franceTokens.length).toBe(0);
+    expect(franceTokens.length).toBe(2);
   });
 
   test('does not reduce below 0 tokens', () => {

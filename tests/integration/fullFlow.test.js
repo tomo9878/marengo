@@ -168,8 +168,8 @@ describe('Raid flow', () => {
     // Should have resolved: no RETREAT_DESTINATION
     // French piece should NOT have moved to locale 1
     expect(newState.pieces['FR-INF-1'].localeId).toBe(2);
-    // No pending interruption
-    expect(newState.pendingInterruption).toBeNull();
+    // 防御成功後は ATTACKER_APPROACH インタラプションが発行される（攻撃側アプローチ移動オプション）
+    expect(newState.pendingInterruption?.type).toBe('attacker_approach');
   });
 
   test('raid interruption: CONTROL_TRANSFER and STATE_UPDATE broadcast to both players', () => {
