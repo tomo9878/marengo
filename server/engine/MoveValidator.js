@@ -774,18 +774,9 @@ function getLegalReorganizeActions(state) {
 
   const results = [];
 
-  // 1駒アクション: 混乱駒それぞれ個別に再編成可能（CP消費1固定）
-  for (const piece of disorderedPieces) {
-    results.push({
-      type: 'reorganize',
-      localeId: piece.localeId,
-      disorderedPieceIds: [piece.id],
-      commandCost: 1,
-    });
-  }
-
-  // 2駒容量の場合、全ペアのアクションも生成（同ロケール・異ロケール両方）
-  if (maxReorganize === 2) {
+  if (maxReorganize === 2 && disorderedPieces.length >= 2) {
+    // 2駒容量かつ混乱駒が2駒以上: CPを分割させないため必ず2駒まとめて再編成。
+    // 全ペアのアクションを生成（同ロケール・異ロケール両方）
     for (let i = 0; i < disorderedPieces.length; i++) {
       for (let j = i + 1; j < disorderedPieces.length; j++) {
         const a = disorderedPieces[i];
@@ -806,6 +797,16 @@ function getLegalReorganizeActions(state) {
           });
         }
       }
+    }
+  } else {
+    // maxReorganize=1、または混乱駒が1駒のみ: 1駒アクションを生成
+    for (const piece of disorderedPieces) {
+      results.push({
+        type: 'reorganize',
+        localeId: piece.localeId,
+        disorderedPieceIds: [piece.id],
+        commandCost: 1,
+      });
     }
   }
 
