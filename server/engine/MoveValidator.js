@@ -767,42 +767,44 @@ function getLegalReorganizeActions(state) {
   ).length;
   const maxReorganize = orderedCount >= 3 ? 2 : 1;
 
-  // ロケール別の混乱駒を収集
-  const localeDisordered = {};
-  for (const piece of Object.values(state.pieces)) {
-    if (piece.side === SIDES.FRANCE && piece.disordered && piece.localeId !== null) {
-      if (!localeDisordered[piece.localeId]) localeDisordered[piece.localeId] = [];
-      localeDisordered[piece.localeId].push(piece.id);
-    }
-  }
+  // 全混乱駒を収集
+  const disorderedPieces = Object.values(state.pieces).filter(
+    p => p.side === SIDES.FRANCE && p.disordered && p.localeId !== null
+  );
 
   const results = [];
 
-  // 単一ロケールアクション（そのロケールの混乱駒数 ≤ capacity のみ選択可）
-  for (const [localeId, pieceIds] of Object.entries(localeDisordered)) {
-    if (pieceIds.length <= maxReorganize) {
-      results.push({
-        type: 'reorganize',
-        localeId: Number(localeId),
-        disorderedPieceIds: pieceIds,
-        commandCost: 1,
-      });
-    }
+  // 1駒アクション: 混乱駒それぞれ個別に再編成可能（CP消費1固定）
+  for (const piece of disorderedPieces) {
+    results.push({
+      type: 'reorganize',
+      localeId: piece.localeId,
+      disorderedPieceIds: [piece.id],
+      commandCost: 1,
+    });
   }
 
-  // 2駒容量の場合、1駒ずつ異なるロケールの組み合わせも生成
+  // 2駒容量の場合、全ペアのアクションも生成（同ロケール・異ロケール両方）
   if (maxReorganize === 2) {
-    const singleLocales = Object.entries(localeDisordered).filter(([, pids]) => pids.length === 1);
-    for (let i = 0; i < singleLocales.length; i++) {
-      for (let j = i + 1; j < singleLocales.length; j++) {
-        const [locA, pidsA] = singleLocales[i];
-        const [locB, pidsB] = singleLocales[j];
-        results.push({
-          type: 'reorganize',
-          localeIds: [Number(locA), Number(locB)],
-          disorderedPieceIds: [...pidsA, ...pidsB],
-          commandCost: 1,
-        });
+    for (let i = 0; i < disorderedPieces.length; i++) {
+      for (let j = i + 1; j < disorderedPieces.length; j++) {
+        const a = disorderedPieces[i];
+        const b = disorderedPieces[j];
+        if (a.localeId === b.localeId) {
+          results.push({
+            type: 'reorganize',
+            localeId: a.localeId,
+            disorderedPieceIds: [a.id, b.id],
+            commandCost: 1,
+          });
+        } else {
+          results.push({
+            type: 'reorganize',
+            localeIds: [a.localeId, b.localeId],
+            disorderedPieceIds: [a.id, b.id],
+            commandCost: 1,
+          });
+        }
       }
     }
   }

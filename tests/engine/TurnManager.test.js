@@ -760,8 +760,8 @@ describe('executeAction: reorganize', () => {
 
     expect(newState.pieces['FR-INF-1'].disordered).toBe(false);
     expect(newState.pieces['FR-INF-2'].disordered).toBe(false);
-    // CP = 駒の数（2）消費: 3 - 2 = 1
-    expect(newState.commandPoints).toBe(1);
+    // CP消費は常に1固定: 3 - 1 = 2
+    expect(newState.commandPoints).toBe(2);
   });
 
   test('no-op when pieceIds is empty', () => {
@@ -779,35 +779,22 @@ describe('executeAction: reorganize', () => {
     expect(newState.commandPoints).toBe(3);
   });
 
-  test('reorganizes all disordered pieces (2 units, costs 2 CP)', () => {
+  test('partial reorganize allowed: 1 of 2 disordered pieces in same locale (costs 1 CP)', () => {
     const state = createMinimalState({
       activePlayer: SIDES.FRANCE,
       controlToken: { holder: SIDES.FRANCE, reason: 'active_player' },
     });
+    // 整列駒なし（orderedCount=0 → maxReorganize=1）
     state.pieces['FR-INF-1'] = makePiece('FR-INF-1', { localeId: 2, disordered: true });
     state.pieces['FR-INF-2'] = makePiece('FR-INF-2', { localeId: 2, disordered: true });
     state.commandPoints = 3;
 
-    // 2駒まとめて再編成（全員一括が原則）
-    const action = { type: 'reorganize', pieceIds: ['FR-INF-1', 'FR-INF-2'], localeId: 2 };
+    // 2駒いるロケールから1駒だけ再編成 → 仕様上許容（部分再編成可）
+    const action = { type: 'reorganize', pieceIds: ['FR-INF-1'], localeId: 2 };
     const { newState } = turnManager.executeAction(action, state);
     expect(newState.pieces['FR-INF-1'].disordered).toBe(false);
-    expect(newState.pieces['FR-INF-2'].disordered).toBe(false);
-    // CP = 2消費: 3 - 2 = 1
-    expect(newState.commandPoints).toBe(1);
-  });
-
-  test('throws on partial reorganize (not all disordered pieces)', () => {
-    const state = createMinimalState({
-      activePlayer: SIDES.FRANCE,
-      controlToken: { holder: SIDES.FRANCE, reason: 'active_player' },
-    });
-    state.pieces['FR-INF-1'] = makePiece('FR-INF-1', { localeId: 2, disordered: true });
-    state.pieces['FR-INF-2'] = makePiece('FR-INF-2', { localeId: 2, disordered: true });
-    state.commandPoints = 3;
-
-    // 2駒のうち1駒だけ指定 → 部分再編成は不可
-    const action = { type: 'reorganize', pieceIds: ['FR-INF-1'], localeId: 2 };
-    expect(() => turnManager.executeAction(action, state)).toThrow();
+    expect(newState.pieces['FR-INF-2'].disordered).toBe(true); // 未再編成
+    // CP消費は常に1固定: 3 - 1 = 2
+    expect(newState.commandPoints).toBe(2);
   });
 });

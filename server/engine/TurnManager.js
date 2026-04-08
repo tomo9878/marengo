@@ -753,18 +753,6 @@ function executeReorganize(action, state) {
     if (!piece.disordered) throw new Error(`混乱していません: ${pid}`);
   }
 
-  // ロケール内全部か0かチェック（各ロケールの全混乱駒が含まれていること）
-  const involvedLocales = new Set(pieceIds.map(pid => next.pieces[pid].localeId));
-  for (const localeId of involvedLocales) {
-    const allDisorderedInLocale = Object.values(next.pieces)
-      .filter(p => p.localeId === localeId && p.side === SIDES.FRANCE && p.disordered)
-      .map(p => p.id);
-    const selectedInLocale = pieceIds.filter(pid => next.pieces[pid].localeId === localeId);
-    if (selectedInLocale.length !== allDisorderedInLocale.length) {
-      throw new Error('ロケール内の全混乱駒をまとめて再編成する必要があります');
-    }
-  }
-
   // CP消費（1アクション1CP固定。再編成した駒はactedPieceIdsに追加しない → 同ターン行動可能）
   next.commandPoints -= 1;
 
