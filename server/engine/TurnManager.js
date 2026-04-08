@@ -1355,6 +1355,10 @@ function processFranceMoraleRecovery(response, state) {
   }
   // localeId = null はスキップ
 
+  // 制御権を activePlayer に戻してからターン開始
+  // （FRANCE_MORALE_RECOVERY 発行時に controlToken が France に上書きされているため）
+  next.controlToken = { holder: next.activePlayer, reason: 'active_player' };
+
   // 次のプレイヤーのターンへ進む
   const newState = startPlayerTurn(next);
   return { newState, interruption: null };
