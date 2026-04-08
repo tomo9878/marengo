@@ -477,11 +477,11 @@ function _applyRaidOutcome(result, ctx, attackerSide) {
 
     const retreatInt = {
       type: INTERRUPTION.RETREAT_DESTINATION,
-      waitingFor: result.retreatInfo.losingside,
+      waitingFor: result.retreatInfo.losingSide,
       context: { ...result.retreatInfo, isRaid: true },
     };
     st.pendingInterruption = retreatInt;
-    st.controlToken = { holder: result.retreatInfo.losingside, reason: INTERRUPTION.RETREAT_DESTINATION };
+    st.controlToken = { holder: result.retreatInfo.losingSide, reason: INTERRUPTION.RETREAT_DESTINATION };
     return { newState: st, interruption: retreatInt };
   }
 }
@@ -1365,12 +1365,14 @@ function processRetreatDestination(response, state) {
   let next = cloneState(state);
 
   // reductionChoices がなければ calculateRetreatReductions から計算
+  const losingSide = ctx.losingSide;
   const reductionChoices = response.reductionChoices
-    ?? combat.calculateRetreatReductions({ losingLocaleId: ctx.losingLocaleId, attackInfo: ctx.attackInfo }, next).reductions;
+    ?? combat.calculateRetreatReductions({ losingLocaleId: ctx.losingLocaleId, losingSide, attackInfo: ctx.attackInfo }, next).reductions;
 
   const retreatResult = combat.resolveRetreat(
     {
       losingLocaleId: ctx.losingLocaleId,
+      losingSide,
       attackInfo: ctx.attackInfo,
       reductionChoices,
       destinations: Object.fromEntries(
@@ -1411,7 +1413,6 @@ function processRetreatDestination(response, state) {
 
   // 士気投入（オーストリアが退却する場合）
   if (retreatResult.moraleInvestment > 0) {
-    const losingSide = ctx.losingSide ?? map.getLocaleOccupant(ctx.losingLocaleId, state);
     if (losingSide) {
       next = morale.investMorale(losingSide, ctx.losingLocaleId, retreatResult.moraleInvestment, next);
     }
@@ -1419,7 +1420,6 @@ function processRetreatDestination(response, state) {
 
   // 士気損失
   if (retreatResult.moraleReduction > 0) {
-    const losingSide = ctx.losingSide ?? map.getLocaleOccupant(ctx.losingLocaleId, state);
     if (losingSide) {
       next = morale.reduceMorale(losingSide, retreatResult.moraleReduction, next);
     }

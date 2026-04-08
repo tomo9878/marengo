@@ -185,7 +185,7 @@ function resolveRaid(
 
   const retreatInfo = {
     losingLocaleId: targetLocaleId,
-    losingside: defenderSide,
+    losingSide: defenderSide,
     attackInfo: {
       attackLocaleId: attackerPieceIds.length > 0
         ? state.pieces[attackerPieceIds[0]]?.localeId
@@ -488,8 +488,8 @@ function getBombardmentTargets({ artilleryId, targetLocaleId, defenseEdgeIdx }, 
  * @param {object} state
  * @returns {{ reductions: Array<{ pieceId, amount }> }}
  */
-function calculateRetreatReductions({ losingLocaleId, attackInfo }, state) {
-  const losingOccupant = map.getLocaleOccupant(losingLocaleId, state);
+function calculateRetreatReductions({ losingLocaleId, losingSide, attackInfo }, state) {
+  const losingOccupant = losingSide ?? map.getLocaleOccupant(losingLocaleId, state);
   if (!losingOccupant) return { reductions: [] };
 
   const locale = map.getLocale(losingLocaleId);
@@ -552,9 +552,9 @@ function calculateRetreatReductions({ losingLocaleId, attackInfo }, state) {
  * @param {object} state
  * @returns {{ newState: GameState, moraleInvestment: number, moraleReduction: number }}
  */
-function resolveRetreat({ losingLocaleId, attackInfo, reductionChoices, destinations }, state) {
+function resolveRetreat({ losingLocaleId, losingSide, attackInfo, reductionChoices, destinations }, state) {
   let next = cloneState(state);
-  const losingOccupant = map.getLocaleOccupant(losingLocaleId, next);
+  const losingOccupant = losingSide ?? map.getLocaleOccupant(losingLocaleId, next);
 
   let totalStrengthReduced = 0;
   let retreatingPieceCount = 0;
