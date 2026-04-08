@@ -535,7 +535,9 @@ function refreshActionPanel() {
         if (a.pieceId === selectedPieceId) return true;
         if (a.type === 'reorganize') {
           const piece = gameState.pieces[selectedPieceId];
-          return piece && a.localeId === piece.localeId;
+          if (!piece) return false;
+          return a.localeId === piece.localeId ||
+            (a.localeIds && a.localeIds.includes(piece.localeId));
         }
         return false;
       })
