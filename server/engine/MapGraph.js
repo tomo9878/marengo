@@ -180,7 +180,7 @@ function hasArtilleryPenalty(localeIdx, edgeIdx) {
 function getBlockingPieces(localeIdx, edgeIdx, state) {
   const posKey = `approach_${edgeIdx}`;
   return Object.values(state.pieces).filter(
-    p => p.localeId === localeIdx && p.position === posKey
+    p => p.localeId === localeIdx && p.position === posKey && p.strength > 0
   );
 }
 
@@ -232,7 +232,8 @@ function isPartiallyBlocked(localeIdx, edgeIdx, state) {
  * @returns {'france' | 'austria' | null}
  */
 function getLocaleOccupant(localeIdx, state) {
-  const pieces = Object.values(state.pieces).filter(p => p.localeId === localeIdx);
+  // strength=0（除去済み）の駒は占拠判定から除外
+  const pieces = Object.values(state.pieces).filter(p => p.localeId === localeIdx && p.strength > 0);
   if (pieces.length === 0) return null;
   // 両軍が混在することはゲーム上ないが、念のため多数側を返す
   const sides = pieces.map(p => p.side);
@@ -261,7 +262,7 @@ function getPiecesAt(localeIdx, position, state) {
  */
 function getLocaleCount(localeIdx, side, state) {
   return Object.values(state.pieces).filter(
-    p => p.localeId === localeIdx && p.side === side
+    p => p.localeId === localeIdx && p.side === side && p.strength > 0
   ).length;
 }
 
