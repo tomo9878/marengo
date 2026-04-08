@@ -37,25 +37,21 @@ function _getTotalMorale(side, state) {
 
 /**
  * 定期士気更新: タイムトラックのトークンを uncommitted に移動する。
+ * activePlayer のターン開始時にそのプレイヤーの士気のみ更新する。
  * @param {number} round
+ * @param {string} activePlayer - 'france' | 'austria'
  * @param {object} state
  * @returns {GameState}
  */
-function periodicMoraleUpdate(round, state) {
+function periodicMoraleUpdate(round, activePlayer, state) {
   const next = cloneState(state);
   const entry = scenarios.timeTrack.find(t => t.round === round);
   if (!entry) return next;
 
   const { moraleGain } = entry;
-
-  // 各陣営の uncommitted を増加（total の上限は超えない）
-  for (const side of [SIDES.FRANCE, SIDES.AUSTRIA]) {
-    const gain = moraleGain[side] ?? 0;
-    if (gain > 0) {
-      const currentTotal = _getTotalMorale(side, next);
-      // uncommitted に追加（total を超えない）
-      next.morale[side].uncommitted += gain;
-    }
+  const gain = moraleGain[activePlayer] ?? 0;
+  if (gain > 0) {
+    next.morale[activePlayer].uncommitted += gain;
   }
 
   return next;

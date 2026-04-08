@@ -8,22 +8,31 @@ const { createMinimalState, makePiece, SIDES } = require('../helpers/stateFactor
 // ---------------------------------------------------------------------------
 
 describe('periodicMoraleUpdate', () => {
-  test('adds morale gain from timeTrack (round 1: france+1, austria+2)', () => {
+  test('adds morale gain only for the active player (austria turn: austria+2, france unchanged)', () => {
     const state = createMinimalState({ round: 1 });
-    const next = moraleManager.periodicMoraleUpdate(1, state);
-    expect(next.morale.france.uncommitted).toBe(state.morale.france.uncommitted + 1);
+    const origFrance = state.morale.france.uncommitted;
+    const next = moraleManager.periodicMoraleUpdate(1, SIDES.AUSTRIA, state);
     expect(next.morale.austria.uncommitted).toBe(state.morale.austria.uncommitted + 2);
+    expect(next.morale.france.uncommitted).toBe(origFrance); // フランスは未更新
+  });
+
+  test('adds morale gain only for the active player (france turn: france+1, austria unchanged)', () => {
+    const state = createMinimalState({ round: 1 });
+    const origAustria = state.morale.austria.uncommitted;
+    const next = moraleManager.periodicMoraleUpdate(1, SIDES.FRANCE, state);
+    expect(next.morale.france.uncommitted).toBe(state.morale.france.uncommitted + 1);
+    expect(next.morale.austria.uncommitted).toBe(origAustria); // オーストリアは未更新
   });
 
   test('does not throw for unknown round', () => {
     const state = createMinimalState({ round: 99 });
-    expect(() => moraleManager.periodicMoraleUpdate(99, state)).not.toThrow();
+    expect(() => moraleManager.periodicMoraleUpdate(99, SIDES.AUSTRIA, state)).not.toThrow();
   });
 
   test('does not mutate original state', () => {
     const state = createMinimalState({ round: 1 });
     const origUncommitted = state.morale.france.uncommitted;
-    moraleManager.periodicMoraleUpdate(1, state);
+    moraleManager.periodicMoraleUpdate(1, SIDES.FRANCE, state);
     expect(state.morale.france.uncommitted).toBe(origUncommitted);
   });
 });
