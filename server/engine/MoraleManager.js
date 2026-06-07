@@ -147,7 +147,7 @@ function reduceMorale(side, amount, state) {
 function moraleCleanup(activePlayer, round, state) {
   let next = cloneState(state);
 
-  for (const side of [SIDES.FRANCE, SIDES.AUSTRIA]) {
+  for (const side of [activePlayer]) {
     const enemy = side === SIDES.FRANCE ? SIDES.AUSTRIA : SIDES.FRANCE;
 
     // 処理するトークンをコピー

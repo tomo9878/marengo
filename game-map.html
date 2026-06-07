@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Triomphe à Marengo — 実装マップ</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --panel: #1a1d26;
+  --border: #2a2d3a;
+  --text: #e2e8f0;
+  --muted: #8892a4;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --bug: #ef4444;
+  --miss: #6b7280;
+  --info: #3b82f6;
+
+  --cat-struct:  #7c3aed;
+  --cat-map:     #0ea5e9;
+  --cat-piece:   #f97316;
+  --cat-march:   #10b981;
+  --cat-combat:  #ef4444;
+  --cat-retreat: #a16207;
+  --cat-morale:  #06b6d4;
+  --cat-special: #8b5cf6;
+  --cat-victory: #eab308;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 13px; line-height: 1.5; }
+
+/* ========= HEADER ========= */
+header { background: #12151f; border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 100; }
+header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; }
+header .meta { color: var(--muted); font-size: 12px; }
+.legend { display: flex; gap: 12px; margin-left: auto; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* ========= PRIORITY PANEL ========= */
+.priority { margin: 16px 16px 0; background: #1e1010; border: 1px solid #7f1d1d; border-radius: 8px; padding: 12px 16px; }
+.priority h2 { font-size: 13px; font-weight: 700; color: #fca5a5; margin-bottom: 8px; }
+.priority-list { display: flex; flex-direction: column; gap: 4px; }
+.pitem { display: flex; align-items: flex-start; gap: 10px; padding: 6px 8px; border-radius: 4px; background: rgba(0,0,0,.2); }
+.pitem:hover { background: rgba(255,255,255,.04); }
+.pri-badge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; white-space: nowrap; min-width: 44px; text-align: center; }
+.p1 { background: #991b1b; color: #fecaca; }
+.p2 { background: #92400e; color: #fde68a; }
+.p3 { background: #1e3a5f; color: #93c5fd; }
+.p-done { background: #14532d; color: #86efac; }
+.pitem.done { opacity: 0.6; }
+.pitem.done .pitem-title { text-decoration: line-through; color: #6b7280; }
+.pitem-title { font-weight: 600; color: #f1f5f9; }
+.pitem-detail { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.pitem-file { font-family: monospace; font-size: 11px; color: #7dd3fc; margin-top: 2px; }
+
+/* ========= LAYOUT ========= */
+.main { padding: 16px; display: flex; flex-direction: column; gap: 20px; }
+
+/* ========= CATEGORY ========= */
+.category { }
+.cat-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.cat-dot { width: 12px; height: 12px; border-radius: 3px; }
+.cat-title { font-size: 14px; font-weight: 700; }
+.cat-desc { color: var(--muted); font-size: 12px; }
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+
+/* ========= CARD ========= */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+  border-left: 3px solid transparent;
+}
+.card:hover { box-shadow: 0 0 0 1px rgba(255,255,255,.08); }
+.card.active { border-color: rgba(255,255,255,.25) !important; box-shadow: 0 0 12px rgba(255,255,255,.06); }
+.card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.card-section { font-size: 10px; color: var(--muted); background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 3px; }
+.card-title { font-weight: 700; font-size: 13px; flex: 1; }
+.status-badge { font-size: 10px; padding: 1px 7px; border-radius: 10px; font-weight: 700; white-space: nowrap; }
+.s-ok   { background: #14532d; color: #86efac; }
+.s-warn { background: #451a03; color: #fcd34d; }
+.s-bug  { background: #450a0a; color: #fca5a5; }
+.s-miss { background: #1a1d26; color: #6b7280; border: 1px solid #374151; }
+.s-info { background: #1e3a5f; color: #93c5fd; }
+
+.card-desc { color: #cbd5e1; font-size: 12px; margin-bottom: 8px; }
+
+.card-issues { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+.issue { font-size: 11px; padding: 3px 7px; border-radius: 4px; }
+.issue-bug  { background: rgba(239,68,68,.12); color: #fca5a5; border-left: 2px solid #ef4444; }
+.issue-warn { background: rgba(245,158,11,.1);  color: #fcd34d; border-left: 2px solid #f59e0b; }
+.issue-miss { background: rgba(107,114,128,.1); color: #9ca3af; border-left: 2px solid #4b5563; }
+
+.card-relations { display: flex; flex-wrap: wrap; gap: 4px; }
+.rel { font-size: 10px; padding: 2px 7px; border-radius: 10px; color: rgba(255,255,255,.7); cursor: pointer; border: 1px solid transparent; }
+.rel:hover { opacity: .8; }
+
+/* Category colors for cards */
+.cat-struct-card  { border-left-color: var(--cat-struct); }
+.cat-map-card     { border-left-color: var(--cat-map); }
+.cat-piece-card   { border-left-color: var(--cat-piece); }
+.cat-march-card   { border-left-color: var(--cat-march); }
+.cat-combat-card  { border-left-color: var(--cat-combat); }
+.cat-retreat-card { border-left-color: var(--cat-retreat); }
+.cat-morale-card  { border-left-color: var(--cat-morale); }
+.cat-special-card { border-left-color: var(--cat-special); }
+.cat-victory-card { border-left-color: var(--cat-victory); }
+
+/* Relation tag colors by category */
+.r-struct  { background: rgba(124,58,237,.25); border-color: rgba(124,58,237,.5); }
+.r-map     { background: rgba(14,165,233,.2);  border-color: rgba(14,165,233,.5); }
+.r-piece   { background: rgba(249,115,22,.2);  border-color: rgba(249,115,22,.5); }
+.r-march   { background: rgba(16,185,129,.2);  border-color: rgba(16,185,129,.5); }
+.r-combat  { background: rgba(239,68,68,.2);   border-color: rgba(239,68,68,.5); }
+.r-retreat { background: rgba(161,98,7,.3);    border-color: rgba(161,98,7,.6); }
+.r-morale  { background: rgba(6,182,212,.2);   border-color: rgba(6,182,212,.5); }
+.r-special { background: rgba(139,92,246,.2);  border-color: rgba(139,92,246,.5); }
+.r-victory { background: rgba(234,179,8,.2);   border-color: rgba(234,179,8,.5); }
+
+/* ========= STATS BAR ========= */
+.stats-bar { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+.stat { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.stat-num { font-size: 18px; font-weight: 700; }
+
+/* ========= DETAIL TOOLTIP ========= */
+#tooltip {
+  position: fixed; bottom: 20px; right: 20px;
+  width: 320px; background: #1e2130; border: 1px solid rgba(255,255,255,.15);
+  border-radius: 10px; padding: 14px; z-index: 200;
+  display: none; box-shadow: 0 8px 32px rgba(0,0,0,.5);
+}
+#tooltip h3 { font-size: 14px; margin-bottom: 6px; }
+#tooltip .rule { font-size: 12px; color: #94a3b8; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Triomphe à Marengo — 実装マップ</h1>
+  <span class="meta">エンジン 4,421行 / テスト 376アサーション / 2026-06-07 更新</span>
+  <div class="legend">
+    <div class="legend-item"><div class="dot" style="background:var(--ok)"></div>実装済み</div>
+    <div class="legend-item"><div class="dot" style="background:var(--warn)"></div>部分実装</div>
+    <div class="legend-item"><div class="dot" style="background:var(--bug)"></div>バグあり</div>
+    <div class="legend-item"><div class="dot" style="background:var(--miss)"></div>未実装</div>
+    <div class="legend-item"><div class="dot" style="background:var(--info)"></div>軽微/確認待ち</div>
+  </div>
+</header>
+
+<!-- ===== PRIORITY ===== -->
+<div class="priority">
+  <h2>🔴 修正優先度リスト（何から手をつけるか）</h2>
+  <div class="priority-list">
+
+    <div class="pitem done">
+      <span class="pri-badge p-done">✅ 解決</span>
+      <div>
+        <div class="pitem-title">退却先バリデーション — can_retreat_through 未チェック</div>
+        <div class="pitem-detail">【仕様変更】自動バリデーションではなく人間判断に変更。退却先選択UIをウィザード式に刷新（1駒ずつ選択・ホバーでマップハイライト・選択中駒フラッシュ）。プレイヤーが方角を視覚的に判断して選ぶ設計に。</div>
+        <div class="pitem-file">CombatDialog.js: renderRetreatDestination() — ウィザードUI実装済み / MapRenderer.js: setHoverHighlight(), setFlashPiece() 追加済み</div>
+      </div>
+    </div>
+
+    <div class="pitem done">
+      <span class="pri-badge p-done">✅ 解決</span>
+      <div>
+        <div class="pitem-title">退却方向制限 — 東西の方向矢印データ未作成・未実装</div>
+        <div class="pitem-detail">【仕様変更】mapデータへの direction_arrow 追加は作業コストが高いため、人間判断に変更。プレイヤーがウィザードUIで退却先を目視して東西を判断する運用に。</div>
+        <div class="pitem-file">自動制限なし。ウィザードUIでの目視判断で対応。</div>
+      </div>
+    </div>
+
+    <div class="pitem done">
+      <span class="pri-badge p-done">✅ 解決</span>
+      <div>
+        <div class="pitem-title">moraleCleanup — 両陣営を毎ターン処理してしまう</div>
+        <div class="pitem-detail">MoraleManager.js#150: <code>for (const side of [SIDES.FRANCE, SIDES.AUSTRIA])</code> → <code>for (const side of [activePlayer])</code> に修正済み。</div>
+        <div class="pitem-file">MoraleManager.js: 修正済み</div>
+      </div>
+    </div>
+
+    <div class="pitem">
+      <span class="pri-badge p2">P2 中</span>
+      <div>
+        <div class="pitem-title">道路行軍急襲 — クライアント側 UI 未実装</div>
+        <div class="pitem-detail">エンジンは完全実装済み（getLegalRoadMoves が raidTargetLocaleId / raidDefenseEdgeIdx / raidCrossingId を返す）。UIがすべての道路行軍を通常行軍として表示しており、急襲含みであることが不明。</div>
+        <div class="pitem-file">client/js/ActionPanel.js: actionType === 'road_march' かつ action.raidTargetLocaleId が存在する場合に「急襲あり」バッジを表示</div>
+      </div>
+    </div>
+
+    <div class="pitem">
+      <span class="pri-badge p3">P3 低</span>
+      <div>
+        <div class="pitem-title">エリア名 — 全90エリアが「エリア_N」のまま</div>
+        <div class="pitem-detail">cosmetic。data/map.json の name / historicalName フィールドに正式名称を入力すれば即反映。ゲームプレイには影響しない。</div>
+        <div class="pitem-file">data/map.json: 各エリアの "name" フィールドを史実地名に更新</div>
+      </div>
+    </div>
+
+    <div class="pitem">
+      <span class="pri-badge p3">P3 低</span>
+      <div>
+        <div class="pitem-title">一部アプローチ幅（narrow/wide）が未設定</div>
+        <div class="pitem-detail">9辺 (e4-0, e5-2, e10-3, e10-4, e11-4, e14-2, e34-3, e41-2, e70-2) の width が null。完全ブロック判定・突撃先導駒数が正しく計算されない可能性。</div>
+        <div class="pitem-file">data/map.json: 上記辺の width を設定（ルールブックのマップ図を参照）</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="main">
+
+<!-- ===== STATS ===== -->
+<div class="stats-bar">
+  <div class="stat"><span class="stat-num" style="color:var(--ok)">28</span> <span>実装済み</span></div>
+  <div class="stat"><span class="stat-num" style="color:var(--warn)">3</span> <span>部分実装</span></div>
+  <div class="stat"><span class="stat-num" style="color:var(--bug)">0</span> <span>バグ確認</span></div>
+  <div class="stat"><span class="stat-num" style="color:var(--miss)">2</span> <span>未実装</span></div>
+  <div class="stat"><span class="stat-num" style="color:var(--info)">2</span> <span>要確認</span></div>
+  <div class="stat" style="margin-left:auto; color:var(--muted); font-size:12px;">クリックでカード詳細 / 関連タグで関係先へジャンプ</div>
+</div>
+
+<!-- ============================= -->
+<!-- CATEGORY: ゲーム構造          -->
+<!-- ============================= -->
+<div class="category">
+  <div class="cat-header">
+    <div class="cat-dot" style="background:var(--cat-struct)"></div>
+    <span class="cat-title">ゲーム構造</span>
+    <span class="cat-desc">ラウンド・ターン・フェーズ・司令ポイント</span>
+  </div>
+  <div class="cards-grid">
+
+    <div class="card cat-struct-card" id="c-round" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§5</span>
+        <span class="card-title">ラウンド / ターン</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">16ラウンド（6AM〜9PM）、各ラウンドにオーストリア→フランスの2ターン。ターン開始時に定期士気更新→アプローチクリーンアップ→アクション→士気クリーンアップ。</div>
+      <div class="card-relations">
+        <span class="rel r-morale" onclick="jump('c-morale-periodic')">定期士気更新</span>
+        <span class="rel r-march" onclick="jump('c-approach-cleanup')">アプローチクリーンアップ</span>
+        <span class="rel r-struct" onclick="jump('c-cp')">司令ポイント</span>
+        <span class="rel r-special" onclick="jump('c-disorder')">フランス混乱(§14)</span>
+      </div>
+    </div>
+
+    <div class="card cat-struct-card" id="c-cp" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§6</span>
+        <span class="card-title">司令ポイント (CP)</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">ターンごとに3CP。悪路行軍・主要道路行軍・砲撃・防御行軍・継続行軍はCP不要（例外）。1アクション最大3駒。道路行軍・再編成は制限あり。</div>
+      <div class="card-relations">
+        <span class="rel r-march" onclick="jump('c-march-cc')">悪路行軍</span>
+        <span class="rel r-march" onclick="jump('c-march-road')">道路行軍</span>
+        <span class="rel r-combat" onclick="jump('c-raid')">急襲</span>
+        <span class="rel r-combat" onclick="jump('c-assault')">突撃</span>
+        <span class="rel r-special" onclick="jump('c-reorg')">再編成</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============================= -->
+<!-- CATEGORY: マップ              -->
+<!-- ============================= -->
+<div class="category">
+  <div class="cat-header">
+    <div class="cat-dot" style="background:var(--cat-map)"></div>
+    <span class="cat-title">マップ</span>
+    <span class="cat-desc">ロケール・ポジション・隣接・辺・横断・交通制限</span>
+  </div>
+  <div class="cards-grid">
+
+    <div class="card cat-map-card" id="c-locale" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§3</span>
+        <span class="card-title">ロケール / ポジション</span>
+        <span class="status-badge s-warn">⚠️ 名前未設定</span>
+      </div>
+      <div class="card-desc">90エリア。各ロケールはリザーブ1＋複数アプローチ。隣接は平行なアプローチ同士。駒はいずれかのポジションをブロック。</div>
+      <div class="card-issues">
+        <div class="issue issue-miss">エリア名が全て「エリア_N」（P3低）</div>
+      </div>
+      <div class="card-relations">
+        <span class="rel r-piece" onclick="jump('c-piece')">駒</span>
+        <span class="rel r-map" onclick="jump('c-approach')">アプローチ幅</span>
+        <span class="rel r-map" onclick="jump('c-symbols')">マップシンボル</span>
+        <span class="rel r-map" onclick="jump('c-crossing')">横断/交通制限</span>
+      </div>
+    </div>
+
+    <div class="card cat-map-card" id="c-approach" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§3</span>
+        <span class="card-title">アプローチ幅 (narrow/wide)</span>
+        <span class="status-badge s-warn">⚠️ 9辺未設定</span>
+      </div>
+      <div class="card-desc">narrow=1駒で完全ブロック、wide=2駒で完全ブロック。1駒のwideは部分ブロック。突撃の先導駒数・退却減少量に影響。</div>
+      <div class="card-issues">
+        <div class="issue issue-miss">9辺の width が null → 完全ブロック判定・突撃先導数が誤る可能性（P3）</div>
+      </div>
+      <div class="card-relations">
+        <span class="rel r-combat" onclick="jump('c-raid')">急襲ブロック判定</span>
+        <span class="rel r-combat" onclick="jump('c-assault')">突撃先導駒数</span>
+        <span class="rel r-retreat" onclick="jump('c-retreat-reduce')">退却戦力減少</span>
+        <span class="rel r-morale" onclick="jump('c-morale-invest')">士気投入数</span>
+      </div>
+    </div>
+
+    <div class="card cat-map-card" id="c-symbols" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§3</span>
+        <span class="card-title">マップシンボル</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">歩兵/騎兵ペナルティ（突撃ペナルティ）・砲兵ペナルティ・通行不可・騎兵障害物・ロケール制限・作戦目標ライン。</div>
+      <div class="card-relations">
+        <span class="rel r-combat" onclick="jump('c-assault')">突撃ペナルティ</span>
+        <span class="rel r-combat" onclick="jump('c-bombardment')">砲撃ペナルティ</span>
+        <span class="rel r-march" onclick="jump('c-march-road')">通行不可</span>
+        <span class="rel r-retreat" onclick="jump('c-retreat-dest')">騎兵障害物(退却)</span>
+        <span class="rel r-victory" onclick="jump('c-victory')">作戦目標ライン</span>
+      </div>
+    </div>
+
+    <div class="card cat-map-card" id="c-crossing" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§8</span>
+        <span class="card-title">横断 / 交通制限</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">横断＝道路がロケール間を通り抜ける点。1ターンに通過できるのは3駒まで（ステップが増えるごとに順番待ち）。増援進入時も適用（マップ端＝最初の横断）。</div>
+      <div class="card-relations">
+        <span class="rel r-march" onclick="jump('c-march-road')">道路行軍</span>
+        <span class="rel r-special" onclick="jump('c-reinforcement')">増援進入</span>
+        <span class="rel r-combat" onclick="jump('c-raid-road')">道路行軍急襲</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============================= -->
+<!-- CATEGORY: 駒                  -->
+<!-- ============================= -->
+<div class="category">
+  <div class="cat-header">
+    <div class="cat-dot" style="background:var(--cat-piece)"></div>
+    <span class="cat-title">駒</span>
+    <span class="cat-desc">歩兵・騎兵・砲兵・戦力・情報隠蔽</span>
+  </div>
+  <div class="cards-grid">
+
+    <div class="card cat-piece-card" id="c-piece" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§2</span>
+        <span class="card-title">駒 (Pieces)</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">兵種（歩兵/騎兵/砲兵）と戦力（1〜3）。表＝情報公開、裏＝非公開が原則。戦力0で除去。兵種によって行動制限が異なる。</div>
+      <div class="card-relations">
+        <span class="rel r-march" onclick="jump('c-march-cc')">行軍可否</span>
+        <span class="rel r-combat" onclick="jump('c-assault')">突撃先導条件</span>
+        <span class="rel r-retreat" onclick="jump('c-retreat-reduce')">退却減少</span>
+        <span class="rel r-special" onclick="jump('c-shuffle')">シャッフル</span>
+      </div>
+    </div>
+
+    <div class="card cat-piece-card" id="c-faceup" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§2,§8</span>
+        <span class="card-title">FaceUp (駒公開)</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">砲撃宣言時・突撃先導選択時・道路行軍急襲後・退却する騎兵は faceUp=true。ターン開始 executeAction 冒頭でリセット（砲撃宣言中の砲兵除く）。</div>
+      <div class="card-relations">
+        <span class="rel r-combat" onclick="jump('c-bombardment')">砲撃宣言</span>
+        <span class="rel r-combat" onclick="jump('c-assault')">突撃先導</span>
+        <span class="rel r-retreat" onclick="jump('c-retreat-dest')">退却騎兵</span>
+        <span class="rel r-combat" onclick="jump('c-raid-road')">道路行軍急襲後</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============================= -->
+<!-- CATEGORY: 行軍                -->
+<!-- ============================= -->
+<div class="category">
+  <div class="cat-header">
+    <div class="cat-dot" style="background:var(--cat-march)"></div>
+    <span class="cat-title">行軍</span>
+    <span class="cat-desc">悪路行軍・道路行軍・防御行軍・継続行軍</span>
+  </div>
+  <div class="cards-grid">
+
+    <div class="card cat-march-card" id="c-march-cc" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§7</span>
+        <span class="card-title">悪路行軍 (Cross-country)</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">リザーブ↔隣接リザーブ、またはリザーブ↔アプローチ。敵占拠ロケールへは不可。防御行軍条件を満たせばCP不要。1アクションに最大3駒（同一ポジション・同一目的地）。</div>
+      <div class="card-relations">
+        <span class="rel r-struct" onclick="jump('c-cp')">CP消費</span>
+        <span class="rel r-map" onclick="jump('c-locale')">ロケール制限</span>
+        <span class="rel r-special" onclick="jump('c-disorder')">混乱駒は不可</span>
+      </div>
+    </div>
+
+    <div class="card cat-march-card" id="c-march-road" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§8</span>
+        <span class="card-title">道路行軍 (Road March)</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">リザーブからのみ開始。最大3ロケール。主要道路のみ＝CP不要、側道含む＝1CP。横断・交通制限に従いステップ単位で解決。1アクション1駒。</div>
+      <div class="card-relations">
+        <span class="rel r-map" onclick="jump('c-crossing')">横断/交通制限</span>
+        <span class="rel r-combat" onclick="jump('c-raid-road')">道路行軍急襲(騎兵)</span>
+        <span class="rel r-march" onclick="jump('c-continuation')">継続行軍</span>
+        <span class="rel r-special" onclick="jump('c-reinforcement')">増援進入</span>
+      </div>
+    </div>
+
+    <div class="card cat-march-card" id="c-approach-cleanup" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§16</span>
+        <span class="card-title">アプローチクリーンアップ</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">ターン開始時（自分の駒のみ）。アプローチをブロックしており向かい側が敵に占拠されていない駒をリザーブへ戻す。</div>
+      <div class="card-relations">
+        <span class="rel r-struct" onclick="jump('c-round')">ターン開始</span>
+        <span class="rel r-map" onclick="jump('c-locale')">ロケール占拠判定</span>
+      </div>
+    </div>
+
+    <div class="card cat-march-card" id="c-continuation" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§12</span>
+        <span class="card-title">継続行軍 (騎兵専用)</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">急襲・突撃・道路行軍・悪路行軍をリザーブで終了した騎兵が追加でアプローチをブロックできる。CP不要（複数先は1CP/追加）。道路行軍後はその道路方向のみ。</div>
+      <div class="card-relations">
+        <span class="rel r-combat" onclick="jump('c-raid')">急襲後</span>
+        <span class="rel r-combat" onclick="jump('c-assault')">突撃勝利後</span>
+        <span class="rel r-march" onclick="jump('c-march-road')">道路行軍後</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============================= -->
+<!-- CATEGORY: 攻撃                -->
+<!-- ============================= -->
+<div class="category">
+  <div class="cat-header">
+    <div class="cat-dot" style="background:var(--cat-combat)"></div>
+    <span class="cat-title">攻撃 / 戦闘解決</span>
+    <span class="cat-desc">急襲・突撃・砲撃・道路行軍急襲</span>
+  </div>
+  <div class="cards-grid">
+
+    <div class="card cat-combat-card" id="c-raid" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§9</span>
+        <span class="card-title">急襲 (Raid)</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">非ブロック/部分ブロックのアプローチを通過してロケール奪取。防御応答あり（リザーブ起点の場合）。勝敗判定：完全ブロック→防御勝ち。部分ブロック+1体+最初の急襲→防御勝ち。</div>
+      <div class="card-relations">
+        <span class="rel r-map" onclick="jump('c-approach')">narrow/wide</span>
+        <span class="rel r-morale" onclick="jump('c-morale-invest')">士気投入(防御勝利)</span>
+        <span class="rel r-retreat" onclick="jump('c-retreat-dest')">退却(攻撃勝利)</span>
+        <span class="rel r-march" onclick="jump('c-continuation')">継続行軍</span>
+        <span class="rel r-combat" onclick="jump('c-raid-road')">道路行軍急襲</span>
+      </div>
+    </div>
+
+    <div class="card cat-combat-card" id="c-raid-road" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§8</span>
+        <span class="card-title">道路行軍急襲 (Road March Raid)</span>
+        <span class="status-badge s-warn">⚠️ エンジンOK / UI未実装</span>
+      </div>
+      <div class="card-desc">道路行軍中の騎兵が敵占拠ロケールに進入を試みる。勝利→行軍継続可（さらに急襲可）。敗北→攻撃元で終了。横断は1ターン1回のみ使用可。急襲後は faceUp=true。</div>
+      <div class="card-issues">
+        <div class="issue issue-warn">UIでこの行軍が急襲を含むことが表示されない（P2）</div>
+      </div>
+      <div class="card-relations">
+        <span class="rel r-march" onclick="jump('c-march-road')">道路行軍</span>
+        <span class="rel r-combat" onclick="jump('c-raid')">急襲解決</span>
+        <span class="rel r-map" onclick="jump('c-crossing')">横断制限</span>
+        <span class="rel r-piece" onclick="jump('c-faceup')">faceUp</span>
+      </div>
+    </div>
+
+    <div class="card cat-combat-card" id="c-assault" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§11</span>
+        <span class="card-title">突撃 (Assault)</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">完全/部分ブロックされた敵アプローチを越えてロケール奪取。5ステップフロー：①防御先導駒宣言→②攻撃先導駒宣言→③防御砲撃→④カウンター→⑤戦力減少。</div>
+      <div class="card-relations">
+        <span class="rel r-combat" onclick="jump('c-def-leaders')">防御先導駒</span>
+        <span class="rel r-combat" onclick="jump('c-atk-leaders')">攻撃先導駒</span>
+        <span class="rel r-combat" onclick="jump('c-def-artillery')">防御砲撃</span>
+        <span class="rel r-combat" onclick="jump('c-counter')">カウンター</span>
+        <span class="rel r-combat" onclick="jump('c-reductions')">戦力減少</span>
+        <span class="rel r-morale" onclick="jump('c-morale-invest')">士気投入</span>
+        <span class="rel r-retreat" onclick="jump('c-retreat-dest')">退却(勝利時)</span>
+      </div>
+    </div>
+
+    <div class="card cat-combat-card" id="c-def-leaders" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§11-2</span>
+        <span class="card-title">防御先導駒宣言</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">防御アプローチの駒から選択。narrow:0〜1個、wide:0〜2個。2個は同一兵種。戦力2以上必須。騎兵障害物があれば騎兵不可。</div>
+      <div class="card-relations">
+        <span class="rel r-map" onclick="jump('c-approach')">narrow/wide</span>
+        <span class="rel r-map" onclick="jump('c-symbols')">騎兵障害物</span>
+      </div>
+    </div>
+
+    <div class="card cat-combat-card" id="c-atk-leaders" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§11-3</span>
+        <span class="card-title">攻撃先導駒宣言</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">攻撃アプローチから選択。narrow:1個必須、wide:1〜2個。2個は同一兵種。戦力2以上必須（防御側と異なり0個は不可）。</div>
+      <div class="card-relations">
+        <span class="rel r-map" onclick="jump('c-approach')">narrow/wide</span>
+        <span class="rel r-map" onclick="jump('c-symbols')">騎兵障害物</span>
+      </div>
+    </div>
+
+    <div class="card cat-combat-card" id="c-def-artillery" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§11-4</span>
+        <span class="card-title">防御砲撃</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">防御側突撃駒に砲兵がいて先導駒でない場合、攻撃側先導駒1体を即座に1戦力減少。前ターンに砲撃宣言/完遂した砲兵は不可。攻撃側アプローチに砲兵ペナルティがある場合も不可。</div>
+      <div class="card-relations">
+        <span class="rel r-piece" onclick="jump('c-piece')">砲兵</span>
+        <span class="rel r-combat" onclick="jump('c-bombardment')">砲撃状態</span>
+        <span class="rel r-map" onclick="jump('c-symbols')">砲兵ペナルティ</span>
+      </div>
+    </div>
+
+    <div class="card cat-combat-card" id="c-counter" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§11-5</span>
+        <span class="card-title">カウンター攻撃</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">先導駒でない突撃駒から選択。narrow:最大1個、wide:最大2個。2個は同一兵種。戦力2以上。即座に攻撃先導駒の数だけ減少。</div>
+      <div class="card-relations">
+        <span class="rel r-combat" onclick="jump('c-reductions')">戦力減少に連動</span>
+        <span class="rel r-map" onclick="jump('c-symbols')">騎兵障害物</span>
+      </div>
+    </div>
+
+    <div class="card cat-combat-card" id="c-reductions" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§11-6,7,8</span>
+        <span class="card-title">勝敗計算 / 戦力減少</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">攻撃先導戦力 − ペナルティ − 防御先導戦力 − カウンター戦力 ≥1 → 攻撃勝ち。双方：相手先導駒数だけ減少（先導→余剰は突撃駒へ）。攻撃側：+生存防御騎兵カウンター数。</div>
+      <div class="card-relations">
+        <span class="rel r-morale" onclick="jump('c-morale-reduce')">士気損失(敗者)</span>
+        <span class="rel r-retreat" onclick="jump('c-retreat-dest')">退却(攻撃勝利)</span>
+      </div>
+    </div>
+
+    <div class="card cat-combat-card" id="c-bombardment" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§10</span>
+        <span class="card-title">砲撃 (Bombardment)</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">砲兵のみ、アプローチから実施。CP不要。今ターン宣言→次ターン完遂の2ターン行動。防御側が被弾駒を選択（優先順：向かい側AP→リザーブ→その他AP）。</div>
+      <div class="card-relations">
+        <span class="rel r-piece" onclick="jump('c-piece')">砲兵のみ</span>
+        <span class="rel r-map" onclick="jump('c-symbols')">砲兵ペナルティ</span>
+        <span class="rel r-morale" onclick="jump('c-morale-reduce')">士気損失</span>
+        <span class="rel r-piece" onclick="jump('c-faceup')">faceUp宣言</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============================= -->
+<!-- CATEGORY: 退却                -->
+<!-- ============================= -->
+<div class="category">
+  <div class="cat-header">
+    <div class="cat-dot" style="background:var(--cat-retreat)"></div>
+    <span class="cat-title">退却</span>
+    <span class="cat-desc">退却戦力減少・退却先選択・方向制限</span>
+  </div>
+  <div class="cards-grid">
+
+    <div class="card cat-retreat-card" id="c-retreat-reduce" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§13-1</span>
+        <span class="card-title">退却戦力減少</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">①全ポジションの砲兵を除去②各アプローチ:narrow1/wide2の減少③リザーブ歩兵:通常1、wideから攻撃かつ攻撃駒複数なら2。リザーブ騎兵は減少なし。防御側が割り当て選択。</div>
+      <div class="card-relations">
+        <span class="rel r-map" onclick="jump('c-approach')">narrow/wide</span>
+        <span class="rel r-morale" onclick="jump('c-morale-reduce')">士気損失</span>
+        <span class="rel r-morale" onclick="jump('c-morale-invest')">士気投入(オーストリア)</span>
+      </div>
+    </div>
+
+    <div class="card cat-retreat-card" id="c-retreat-dest" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§13-2</span>
+        <span class="card-title">退却先選択</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">生き残った全駒を隣接リザーブへ退却。退却不可：攻撃元・敵占拠ロケール・容量超過。最終手段のみ：フランスは西・オーストリアは東方向へのみ退却（人間判断）。退却先なし→除去。</div>
+      <div class="card-issues">
+        <div class="issue issue-warn">ℹ️ can_retreat_through・東西方向制限は自動チェックなし → プレイヤーがウィザードUIで目視判断（仕様変更）</div>
+      </div>
+      <div class="card-relations">
+        <span class="rel r-map" onclick="jump('c-locale')">隣接ロケール</span>
+        <span class="rel r-map" onclick="jump('c-symbols')">ロケール制限</span>
+        <span class="rel r-piece" onclick="jump('c-faceup')">退却騎兵faceUp</span>
+        <span class="rel r-special" onclick="jump('c-disorder')">混乱伝染</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============================= -->
+<!-- CATEGORY: 士気                -->
+<!-- ============================= -->
+<div class="category">
+  <div class="cat-header">
+    <div class="cat-dot" style="background:var(--cat-morale)"></div>
+    <span class="cat-title">士気</span>
+    <span class="cat-desc">定期更新・投入・損失・クリーンアップ・フランス回収</span>
+  </div>
+  <div class="cards-grid">
+
+    <div class="card cat-morale-card" id="c-morale-periodic" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§18</span>
+        <span class="card-title">定期士気更新</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">各プレイヤーのターン開始時に、タイムトラック上の現ラウンドの士気トークンを未投入エリアへ移す（scenarios.json の timeTrack で設定）。</div>
+      <div class="card-relations">
+        <span class="rel r-struct" onclick="jump('c-round')">ターン開始</span>
+        <span class="rel r-morale" onclick="jump('c-morale-invest')">士気投入の源</span>
+      </div>
+    </div>
+
+    <div class="card cat-morale-card" id="c-morale-invest" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§18</span>
+        <span class="card-title">士気投入</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">防御側勝利時にロケールへトークンを置く。急襲：wide+2体攻撃+最初の急襲→2枚、それ以外→1枚。突撃：先導駒+カウンター駒数。オーストリア退却：退却駒数。未投入不足時→MORALE_TOKEN_REMOVAL。</div>
+      <div class="card-relations">
+        <span class="rel r-combat" onclick="jump('c-raid')">急襲防御勝利</span>
+        <span class="rel r-combat" onclick="jump('c-assault')">突撃防御勝利</span>
+        <span class="rel r-retreat" onclick="jump('c-retreat-reduce')">オーストリア退却</span>
+        <span class="rel r-morale" onclick="jump('c-morale-removal')">TOKEN_REMOVAL</span>
+      </div>
+    </div>
+
+    <div class="card cat-morale-card" id="c-morale-reduce" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§18</span>
+        <span class="card-title">士気損失</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">砲撃・退却・突撃の戦力減少1につき士気-1（突撃勝者は除く）。未投入から先に除去→不足分→MORALE_TOKEN_REMOVAL（相手がマップトークンを選んで除去）。</div>
+      <div class="card-relations">
+        <span class="rel r-combat" onclick="jump('c-bombardment')">砲撃</span>
+        <span class="rel r-retreat" onclick="jump('c-retreat-reduce')">退却減少</span>
+        <span class="rel r-combat" onclick="jump('c-reductions')">突撃減少(敗者)</span>
+        <span class="rel r-morale" onclick="jump('c-morale-removal')">TOKEN_REMOVAL</span>
+        <span class="rel r-victory" onclick="jump('c-victory')">士気崩壊→即勝利</span>
+      </div>
+    </div>
+
+    <div class="card cat-morale-card" id="c-morale-cleanup" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§18</span>
+        <span class="card-title">士気クリーンアップ</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">ターン終了時に①敵占拠/最後に敵がいたロケールのトークン除去②隣接に敵なしのトークンを未投入へ返還③フランスのみラウンド11未満なら1トークン任意返還。</div>
+      <div class="card-issues">
+        <div class="issue issue-info">✅ MoraleManager.js#150: <code>for (const side of [activePlayer])</code> に修正済み — アクティブプレイヤーのトークンのみ処理。</div>
+      </div>
+      <div class="card-relations">
+        <span class="rel r-struct" onclick="jump('c-round')">ターン終了</span>
+        <span class="rel r-morale" onclick="jump('c-morale-recovery')">フランス回収(§3)</span>
+      </div>
+    </div>
+
+    <div class="card cat-morale-card" id="c-morale-removal" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§18</span>
+        <span class="card-title">MORALE_TOKEN_REMOVAL</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">未投入不足時、相手プレイヤーがマップ上のどのトークンを除去するか選択するインタラプション。</div>
+      <div class="card-relations">
+        <span class="rel r-morale" onclick="jump('c-morale-invest')">投入不足時</span>
+        <span class="rel r-morale" onclick="jump('c-morale-reduce')">損失不足時</span>
+      </div>
+    </div>
+
+    <div class="card cat-morale-card" id="c-morale-recovery" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§18-3</span>
+        <span class="card-title">FRANCE_MORALE_RECOVERY</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">フランスのみ。4AM（ラウンド11）より前のターン終了時、投入トークン1つを未投入へ返還可。ただし直前のオーストリアターン中に別ロケールへ移動されたトークンは選択不可。</div>
+      <div class="card-relations">
+        <span class="rel r-morale" onclick="jump('c-morale-cleanup')">士気クリーンアップ内</span>
+        <span class="rel r-struct" onclick="jump('c-round')">ラウンド11制限</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============================= -->
+<!-- CATEGORY: 特殊ルール          -->
+<!-- ============================= -->
+<div class="category">
+  <div class="cat-header">
+    <div class="cat-dot" style="background:var(--cat-special)"></div>
+    <span class="cat-title">特殊ルール</span>
+    <span class="cat-desc">フランス混乱・増援・シャッフル・再編成・混乱伝染</span>
+  </div>
+  <div class="cards-grid">
+
+    <div class="card cat-special-card" id="c-disorder" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§14</span>
+        <span class="card-title">フランス軍の混乱 (Disorder)</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">ラウンド1のみフランスはアプローチをブロック不可。序盤のフランス駒は全て混乱状態（攻撃不可・現在のロケールから出られない）。再編成アクションで通常状態へ。混乱駒がいるロケールへ進入→全駒が混乱伝染。</div>
+      <div class="card-relations">
+        <span class="rel r-march" onclick="jump('c-march-cc')">悪路行軍制限</span>
+        <span class="rel r-special" onclick="jump('c-reorg')">再編成で解除</span>
+        <span class="rel r-retreat" onclick="jump('c-retreat-dest')">退却後も混乱継続</span>
+      </div>
+    </div>
+
+    <div class="card cat-special-card" id="c-reinforcement" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§15</span>
+        <span class="card-title">増援進入</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">オーストリア：ターン中に任意で入場（砲兵はラウンド2以降）。舟橋ボーナスで通常+1駒。フランス：ターン開始時に自動進入。入場後1〜2ステップの道路行軍付与。進入ロケールへの敵侵入禁止。</div>
+      <div class="card-relations">
+        <span class="rel r-map" onclick="jump('c-crossing')">交通制限</span>
+        <span class="rel r-march" onclick="jump('c-march-road')">道路行軍</span>
+        <span class="rel r-map" onclick="jump('c-locale')">進入ロケール保護</span>
+      </div>
+    </div>
+
+    <div class="card cat-special-card" id="c-shuffle" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§17</span>
+        <span class="card-title">シャッフル</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">同じポジション・保持エリア内の複数駒を混ぜて隠蔽を回復。いつでも可能（相手ターン中も）。ただしアクション済み駒と未アクション駒を混ぜることは不可。</div>
+      <div class="card-relations">
+        <span class="rel r-piece" onclick="jump('c-piece')">情報隠蔽</span>
+      </div>
+    </div>
+
+    <div class="card cat-special-card" id="c-reorg" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§14</span>
+        <span class="card-title">再編成 (Reorganize)</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">フランスのみ。再編成済み2体以下→1体を再編成、3体以上→2体を再編成。同一ターン中に他のアクション可（SP要）。同じロケールでなくてもよい。</div>
+      <div class="card-relations">
+        <span class="rel r-special" onclick="jump('c-disorder')">混乱解除</span>
+        <span class="rel r-struct" onclick="jump('c-cp')">CP消費あり（後のアクション）</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============================= -->
+<!-- CATEGORY: 勝利条件            -->
+<!-- ============================= -->
+<div class="category">
+  <div class="cat-header">
+    <div class="cat-dot" style="background:var(--cat-victory)"></div>
+    <span class="cat-title">勝利条件</span>
+    <span class="cat-desc">士気崩壊・作戦目標ライン</span>
+  </div>
+  <div class="cards-grid">
+
+    <div class="card cat-victory-card" id="c-victory" onclick="toggle(this)">
+      <div class="card-head">
+        <span class="card-section">§19</span>
+        <span class="card-title">勝利判定</span>
+        <span class="status-badge s-ok">✅ OK</span>
+      </div>
+      <div class="card-desc">①士気崩壊（≤0）→即時決定的勝利②9PM終了時：作戦目標ラインより東にオーストリア駒が3体以上→オーストリア辛勝、それ以外→フランス辛勝。</div>
+      <div class="card-relations">
+        <span class="rel r-morale" onclick="jump('c-morale-reduce')">士気損失</span>
+        <span class="rel r-map" onclick="jump('c-symbols')">作戦目標ライン</span>
+        <span class="rel r-struct" onclick="jump('c-round')">ラウンド終了</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<div id="tooltip"></div>
+
+<script>
+function toggle(card) {
+  document.querySelectorAll('.card.active').forEach(c => { if(c !== card) c.classList.remove('active'); });
+  card.classList.toggle('active');
+}
+function jump(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.add('active');
+  setTimeout(() => el.classList.remove('active'), 2000);
+}
+// Highlight rel tags on hover
+document.querySelectorAll('.rel').forEach(tag => {
+  tag.addEventListener('mouseenter', e => {
+    e.stopPropagation();
+  });
+  tag.addEventListener('click', e => {
+    e.stopPropagation();
+    const id = tag.getAttribute('onclick').match(/'([^']+)'/)[1];
+    jump(id);
+  });
+});
+</script>
+</body>
+</html>
