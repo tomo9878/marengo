@@ -183,12 +183,12 @@ header .meta { color: var(--muted); font-size: 12px; }
       </div>
     </div>
 
-    <div class="pitem">
-      <span class="pri-badge p2">P2 中</span>
+    <div class="pitem done">
+      <span class="pri-badge p-done">✅ 解決</span>
       <div>
         <div class="pitem-title">道路行軍急襲 — クライアント側 UI 未実装</div>
-        <div class="pitem-detail">エンジンは完全実装済み（getLegalRoadMoves が raidTargetLocaleId / raidDefenseEdgeIdx / raidCrossingId を返す）。UIがすべての道路行軍を通常行軍として表示しており、急襲含みであることが不明。</div>
-        <div class="pitem-file">client/js/ActionPanel.js: actionType === 'road_march' かつ action.raidTargetLocaleId が存在する場合に「急襲あり」バッジを表示</div>
+        <div class="pitem-detail">ActionPanel.js showMoveConfirmDialog(): road_march かつ raidTargetLocaleId が存在する場合に「⚔ 急襲 → [ロケール名]」バッジをボタンに付加。</div>
+        <div class="pitem-file">client/js/ActionPanel.js: 修正済み</div>
       </div>
     </div>
 
@@ -217,8 +217,8 @@ header .meta { color: var(--muted); font-size: 12px; }
 
 <!-- ===== STATS ===== -->
 <div class="stats-bar">
-  <div class="stat"><span class="stat-num" style="color:var(--ok)">28</span> <span>実装済み</span></div>
-  <div class="stat"><span class="stat-num" style="color:var(--warn)">3</span> <span>部分実装</span></div>
+  <div class="stat"><span class="stat-num" style="color:var(--ok)">29</span> <span>実装済み</span></div>
+  <div class="stat"><span class="stat-num" style="color:var(--warn)">2</span> <span>部分実装</span></div>
   <div class="stat"><span class="stat-num" style="color:var(--bug)">0</span> <span>バグ確認</span></div>
   <div class="stat"><span class="stat-num" style="color:var(--miss)">2</span> <span>未実装</span></div>
   <div class="stat"><span class="stat-num" style="color:var(--info)">2</span> <span>要確認</span></div>
@@ -495,11 +495,11 @@ header .meta { color: var(--muted); font-size: 12px; }
       <div class="card-head">
         <span class="card-section">§8</span>
         <span class="card-title">道路行軍急襲 (Road March Raid)</span>
-        <span class="status-badge s-warn">⚠️ エンジンOK / UI未実装</span>
+        <span class="status-badge s-ok">✅ OK</span>
       </div>
       <div class="card-desc">道路行軍中の騎兵が敵占拠ロケールに進入を試みる。勝利→行軍継続可（さらに急襲可）。敗北→攻撃元で終了。横断は1ターン1回のみ使用可。急襲後は faceUp=true。</div>
       <div class="card-issues">
-        <div class="issue issue-warn">UIでこの行軍が急襲を含むことが表示されない（P2）</div>
+        <div class="issue issue-info">✅ ActionPanel.js: road_march + raidTargetLocaleId がある場合に「⚔ 急襲 → [ロケール名]」バッジをボタンに表示。</div>
       </div>
       <div class="card-relations">
         <span class="rel r-march" onclick="jump('c-march-road')">道路行軍</span>

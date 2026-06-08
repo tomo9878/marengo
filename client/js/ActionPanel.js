@@ -48,11 +48,28 @@ export default class ActionPanel {
     this._interruptionActive = false;
     this._selectedPiece = null;
 
+    // マップ演出コールバック（退却先選択などで使用）
+    this._onHoverLocale = null;
+    this._onFlashPiece  = null;
+    this._onClearMap    = null;
+
     if (this._turnEndBtn) {
       this._turnEndBtn.addEventListener('click', () => {
         if (this._onTurnEnd) this._onTurnEnd();
       });
     }
+  }
+
+  /**
+   * マップ演出コールバックを設定する（App.js から呼ぶ）。
+   * @param {(id:number|null)=>void} onHoverLocale
+   * @param {(id:string|null)=>void} onFlashPiece
+   * @param {()=>void} onClearMap
+   */
+  setMapCallbacks(onHoverLocale, onFlashPiece, onClearMap) {
+    this._onHoverLocale = onHoverLocale;
+    this._onFlashPiece  = onFlashPiece;
+    this._onClearMap    = onClearMap;
   }
 
   // ---------------------------------------------------------------------------
@@ -248,6 +265,27 @@ export default class ActionPanel {
         btn.className = 'action-btn';
         btn.style.cssText = 'display:block;width:100%;margin-bottom:4px;text-align:left;';
         btn.textContent = `${label}  (${action.commandCost}CP)`;
+
+        // 急襲バッジ
+        if (action.type === 'road_march' && action.raidTargetLocaleId != null) {
+          const raidName = this._getLocaleName(action.raidTargetLocaleId, mapData);
+          const badge = document.createElement('span');
+          badge.textContent = `⚔ 急襲 → ${raidName}`;
+          badge.style.cssText = [
+            'display:inline-block',
+            'margin-left:6px',
+            'padding:1px 5px',
+            'border-radius:3px',
+            'font-size:10px',
+            'font-weight:bold',
+            'background:#7c2d12',
+            'color:#fca5a5',
+            'border:1px solid #ef4444',
+            'vertical-align:middle',
+          ].join(';');
+          btn.appendChild(badge);
+        }
+
         btn.addEventListener('click', () => onConfirm(action));
         el.appendChild(btn);
       }
@@ -550,7 +588,10 @@ export default class ActionPanel {
         dialog.renderBombardmentReduction(el, options, gameState, wrap(onResponse));
         break;
       case 'retreat_destination':
-        dialog.renderRetreatDestination(el, options, gameState, wrap(onResponse));
+        dialog.renderRetreatDestination(
+          el, options, gameState, wrap(onResponse),
+          this._onHoverLocale, this._onFlashPiece
+        );
         break;
       case 'attacker_approach':
         dialog.renderAttackerApproach(el, options, gameState, wrap(onResponse));
@@ -596,6 +637,9 @@ export default class ActionPanel {
       el.id = 'actionPanel';
       el.innerHTML = '';
     }
+
+    // マップ演出をクリア
+    if (this._onClearMap) this._onClearMap();
 
     // Un-dim canvas
     const canvas = document.getElementById('mapCanvas');
